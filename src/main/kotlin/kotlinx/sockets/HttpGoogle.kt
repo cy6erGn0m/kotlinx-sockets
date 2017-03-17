@@ -35,6 +35,6 @@ fun main(args: Array<String>) {
     }
 }
 
-private suspend fun AsyncSocket<*>.send(text: String) {
+private suspend fun AsyncSocket.send(text: String) {
     write(ByteBuffer.wrap(text.toByteArray()))
 }

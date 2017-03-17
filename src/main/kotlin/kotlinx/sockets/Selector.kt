@@ -43,9 +43,9 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
         }
     }
 
-    fun socket(): AsyncSocket<SocketChannel> {
+    fun socket(): AsyncSocket {
         ensure()
-        return AsyncSocket(selector.value.provider().openSocketChannel().apply {
+        return AsyncSocketImpl(selector.value.provider().openSocketChannel().apply {
             configureBlocking(false)
         }, this)
     }

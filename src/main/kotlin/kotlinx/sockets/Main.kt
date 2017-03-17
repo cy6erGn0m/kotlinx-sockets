@@ -49,16 +49,16 @@ fun main(args: Array<String>) {
     }
 }
 
-private suspend fun processCommand(line: String, socket: AsyncSocket<*>) {
+private suspend fun processCommand(line: String, socket: AsyncSocket) {
     when {
         line.startsWith("exit") -> {
             println("Got exit")
             socket.respond("Bye.\n\n")
-            socket.channel.close()
+            socket.close()
             exitProcess(0)
         }
         line.startsWith("id") -> {
-            socket.respond("ID: ${socket.channel.remoteAddress}\n")
+            socket.respond("ID: ${socket.remoteAddress}\n")
         }
         else -> {
             socket.respond("Unknown command: $line\n")
@@ -66,10 +66,6 @@ private suspend fun processCommand(line: String, socket: AsyncSocket<*>) {
     }
 }
 
-private suspend fun AsyncSocket<*>.respond(text: String) {
+private suspend fun AsyncSocket.respond(text: String) {
     write(ByteBuffer.wrap(text.toByteArray()))
-}
-
-private fun StringBuilder.clear() {
-    delete(0, length)
 }

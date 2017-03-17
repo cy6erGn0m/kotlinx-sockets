@@ -1,7 +1,6 @@
 package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
-import java.io.*
 import java.net.*
 import java.nio.*
 import java.nio.channels.*
@@ -9,18 +8,28 @@ import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 import kotlin.coroutines.experimental.intrinsics.*
 
-open class AsyncSocket<out S : SocketChannel>(override final val channel: S, val selector: SelectorManager) : AsyncSelectable, AutoCloseable, Closeable {
+internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : AsyncSelectable, AsyncSocket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
 
     @Volatile
-    final override var interestedOps: Int = 0
+    override var interestedOps: Int = 0
         private set
 
     private val connectContinuation = AtomicReference<Continuation<Boolean>?>()
     private val readContinuation = AtomicReference<Continuation<Unit>?>()
     private val writeContinuation = AtomicReference<Continuation<Unit>?>()
+
+    override val localAddress: SocketAddress
+        get() = channel.localAddress
+
+    override val remoteAddress: SocketAddress
+        get() = channel.remoteAddress
+
+    override fun <T> setOption(name: SocketOption<T>, value: T) {
+        channel.setOption(name, value)
+    }
 
     override suspend fun onSelected(key: SelectionKey) {
         if (key.isConnectable) {
@@ -42,9 +51,9 @@ open class AsyncSocket<out S : SocketChannel>(override final val channel: S, val
         }
     }
 
-    suspend fun connect(p: SocketAddress) {
+    override suspend fun connect(address: SocketAddress) {
         var connected = suspendCoroutineOrReturn<Boolean> { c ->
-            if (channel.connect(p)) {
+            if (channel.connect(address)) {
                 true
             } else {
                 if (!connectContinuation.compareAndSet(null, c)) throw IllegalStateException()
@@ -68,7 +77,7 @@ open class AsyncSocket<out S : SocketChannel>(override final val channel: S, val
         }
     }
 
-    suspend fun read(dst: ByteBuffer): Int {
+    override suspend fun read(dst: ByteBuffer): Int {
         while (true) {
             val rc = suspendCoroutineOrReturn<Any> {
                 val rc = channel.read(dst)
@@ -85,7 +94,7 @@ open class AsyncSocket<out S : SocketChannel>(override final val channel: S, val
         }
     }
 
-    suspend fun write(src: ByteBuffer) {
+    override suspend fun write(src: ByteBuffer) {
         while (src.hasRemaining()) {
             suspendCoroutineOrReturn<Unit> { c ->
                 val rc = channel.write(src)
@@ -123,7 +132,7 @@ open class AsyncSocket<out S : SocketChannel>(override final val channel: S, val
         if (interestedOps != newOps) {
             launch(selector.dispatcher) {
                 interestedOps = newOps
-                selector.registerSafe(this@AsyncSocket)
+                selector.registerSafe(this@AsyncSocketImpl)
             }
         }
     }
