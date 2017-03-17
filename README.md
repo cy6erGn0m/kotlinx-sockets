@@ -10,8 +10,6 @@ Consider example
 fun main(args: Array<String>) {
     runBlocking { // start coroutines
         SelectorManager().use { manager ->
-            manager.start() // start selectors
-
             manager.socket().use { socket ->
                 socket.connect(InetSocketAddress(InetAddress.getByName("google.com"), 80))
                 println("Connected") // now we are connected

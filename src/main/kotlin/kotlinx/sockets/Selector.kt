@@ -25,42 +25,55 @@ private tailrec fun selectorLoop(selector: Selector, q: Channel<(Selector) -> Un
     selectorLoop(selector, q, consumer)
 }
 
-class SelectorManager(val dispatcher: CoroutineDispatcher = pool.asCoroutineDispatcher()): AutoCloseable, Closeable {
-    private val selector = Selector.open()
+class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()): AutoCloseable, Closeable {
+    @Volatile
+    private var closed = false
+    private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open() }
     private val q = ArrayChannel<(Selector) -> Unit>(1000)
 
-    fun start() {
-        launch(dispatcher) {
-            selectorLoop(selector, q) { key ->
+    private val selectorJob = launch(dispatcher, false) {
+        launch(dispatcher, false) {
+            selectorLoop(selector.value, q) { key ->
                 key.interestOps(0)
 
                 launch(dispatcher) {
-                    (key.attachment() as? AsyncSelectable)?.apply {
-                        onSelected(key)
-                        if (key.interestOps() != interestedOps) {
-                            registerSafe(this)
-                        }
-                    }
+                    handleSelectedKey(key)
                 }
             }
         }
     }
 
     fun socket(): AsyncSocket<SocketChannel> {
-        return AsyncSocket(selector.provider().openSocketChannel().apply {
+        ensure()
+        return AsyncSocket(selector.value.provider().openSocketChannel().apply {
             configureBlocking(false)
         }, this)
     }
 
-    suspend fun registerSafe(selectable: AsyncSelectable) {
+    override fun close() {
+        closed = true
+        if (selector.isInitialized()) selector.value.close()
+    }
+
+    internal suspend fun registerSafe(selectable: AsyncSelectable) {
         q.send({ selector ->
             registerUnsafe(selectable, selector)
         })
-        selector.wakeup()
+        selector.value.wakeup()
     }
 
-    override fun close() {
-        selector.close()
+    private fun ensure() {
+        if (closed) throw ClosedSelectorException()
+        selectorJob.start()
+    }
+
+    private suspend fun handleSelectedKey(key: SelectionKey) {
+        (key.attachment() as? AsyncSelectable)?.apply {
+            onSelected(key)
+            if (key.interestOps() != interestedOps) {
+                registerSafe(this)
+            }
+        }
     }
 
     private fun registerUnsafe(selectable: AsyncSelectable, selector: Selector) {

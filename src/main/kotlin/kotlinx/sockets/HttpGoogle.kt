@@ -7,8 +7,6 @@ import java.nio.*
 fun main(args: Array<String>) {
     runBlocking {
         SelectorManager().use { manager ->
-            manager.start()
-
             manager.socket().use { socket ->
                 socket.connect(InetSocketAddress(InetAddress.getByName("google.com"), 80))
                 println("Connected")

@@ -3,19 +3,12 @@ package kotlinx.sockets
 import java.util.concurrent.*
 import java.util.concurrent.atomic.*
 
-private val group = ThreadGroup("pool-group")
+private val group = ThreadGroup("io-pool-group")
 private val counter = AtomicInteger()
-internal val pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2 + 1) { r ->
+private val cpuCount = Runtime.getRuntime().availableProcessors()
+
+internal val ioPool = ThreadPoolExecutor(cpuCount, cpuCount * 2 + 1, 10L, TimeUnit.SECONDS, ArrayBlockingQueue<Runnable>(10), { r ->
     Thread(group, r, group.name + counter.incrementAndGet()).apply {
         isDaemon = true
     }
-}
-
-internal fun ensureOnPool(block: () -> Unit) {
-    if (Thread.currentThread().threadGroup == group) {
-        block()
-    } else {
-        pool.execute(block)
-    }
-}
-
+})

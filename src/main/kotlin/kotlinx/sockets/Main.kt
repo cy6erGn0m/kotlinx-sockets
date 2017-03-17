@@ -7,8 +7,6 @@ import kotlin.system.*
 
 fun main(args: Array<String>) {
     SelectorManager().use { manager ->
-        manager.start()
-
         runBlocking {
             manager.socket().use { socket ->
                 socket.connect(InetSocketAddress(9098))
