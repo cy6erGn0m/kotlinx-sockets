@@ -1,7 +1,6 @@
 package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.future.*
 import java.net.*
 import java.nio.*
 import kotlin.system.*
@@ -10,7 +9,7 @@ fun main(args: Array<String>) {
     SelectorManager().use { manager ->
         manager.start()
 
-        future(CommonPool) {
+        runBlocking {
             manager.socket().use { socket ->
                 socket.connect(InetSocketAddress(9098))
                 println("Connected")
@@ -48,7 +47,7 @@ fun main(args: Array<String>) {
                     if (rc == -1) break
                 }
             }
-        }.get()
+        }
     }
 }
 
