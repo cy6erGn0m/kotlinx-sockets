@@ -1,6 +1,5 @@
 package kotlinx.sockets
 
-import kotlinx.coroutines.experimental.*
 import java.net.*
 import java.nio.*
 import java.nio.channels.*
@@ -33,19 +32,19 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
 
     override suspend fun onSelected(key: SelectionKey) {
         if (key.isConnectable) {
-            connectContinuation.getAndSet(null)?.resume(false)
+            connectContinuation.take().resume(false)
         } else {
             wantConnect(false)
         }
 
         if (key.isReadable) {
-            readContinuation.getAndSet(null)?.resume(Unit)
+            readContinuation.take().resume(Unit)
         } else {
             wantMoreBytesRead(false)
         }
 
         if (key.isWritable) {
-            writeContinuation.getAndSet(null)?.resume(Unit)
+            writeContinuation.take().resume(Unit)
         } else {
             wantMoreSpaceForWrite(false)
         }
@@ -56,7 +55,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             if (channel.connect(address)) {
                 true
             } else {
-                if (!connectContinuation.compareAndSet(null, c)) throw IllegalStateException()
+                connectContinuation.setHandler("connect", c)
                 wantConnect(true)
 
                 COROUTINE_SUSPENDED
@@ -68,7 +67,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
                 if (channel.finishConnect()) {
                     true
                 } else {
-                    if (!connectContinuation.compareAndSet(null, c)) throw IllegalStateException()
+                    connectContinuation.setHandler("connect", c)
                     wantConnect(true)
 
                     COROUTINE_SUSPENDED
@@ -79,11 +78,11 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
 
     override suspend fun read(dst: ByteBuffer): Int {
         while (true) {
-            val rc = suspendCoroutineOrReturn<Any> {
+            val rc = suspendCoroutineOrReturn<Any> { c ->
                 val rc = channel.read(dst)
                 if (rc > 0) rc
                 else {
-                    if (!readContinuation.compareAndSet(null, it)) throw IllegalStateException()
+                    readContinuation.setHandler("read", c)
                     wantMoreBytesRead()
 
                     COROUTINE_SUSPENDED
@@ -100,7 +99,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
                 val rc = channel.write(src)
 
                 if (rc == 0) {
-                    if (!writeContinuation.compareAndSet(null, c)) throw IllegalStateException()
+                    writeContinuation.setHandler("write", c)
                     wantMoreSpaceForWrite()
 
                     COROUTINE_SUSPENDED
@@ -116,24 +115,14 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     private fun wantConnect(state: Boolean = true) {
-        interestFlag(SelectionKey.OP_CONNECT, state)
+        interestFlag(selector, SelectionKey.OP_CONNECT, state, { interestedOps = it })
     }
 
     private fun wantMoreBytesRead(state: Boolean = true) {
-        interestFlag(SelectionKey.OP_READ, state)
+        interestFlag(selector, SelectionKey.OP_READ, state, { interestedOps = it })
     }
 
     private fun wantMoreSpaceForWrite(state: Boolean = true) {
-        interestFlag(SelectionKey.OP_WRITE, state)
-    }
-
-    private fun interestFlag(flag: Int, state: Boolean) {
-        val newOps = if (state) interestedOps or flag else interestedOps and flag.inv()
-        if (interestedOps != newOps) {
-            launch(selector.dispatcher) {
-                interestedOps = newOps
-                selector.registerSafe(this@AsyncSocketImpl)
-            }
-        }
+        interestFlag(selector, SelectionKey.OP_WRITE, state, { interestedOps = it })
     }
 }

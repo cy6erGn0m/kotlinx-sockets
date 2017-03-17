@@ -2,7 +2,6 @@ package kotlinx.sockets
 
 import java.io.*
 import java.net.*
-import java.net.Socket
 import java.nio.*
 
 interface AsyncLocalPeer : Closeable {
@@ -24,6 +23,6 @@ interface AsyncSocket : AsyncLocalPeer, AsyncConnection, ConfigurableSocket {
 }
 
 interface AsyncServerSocket : AsyncLocalPeer, ConfigurableSocket {
-    suspend fun bind(localAddress: SocketAddress)
-    suspend fun accept(): Socket
+    fun bind(localAddress: SocketAddress)
+    suspend fun accept(): AsyncSocket
 }

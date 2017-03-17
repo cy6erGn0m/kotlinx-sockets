@@ -50,6 +50,13 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
         }, this)
     }
 
+    fun serverSocket(): AsyncServerSocket {
+        ensure()
+        return AsyncServerSocketImpl(selector.value.provider().openServerSocketChannel().apply {
+            configureBlocking(false)
+        }, this)
+    }
+
     override fun close() {
         closed = true
         if (selector.isInitialized()) selector.value.close()
