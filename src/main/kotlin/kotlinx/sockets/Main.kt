@@ -7,47 +7,49 @@ import java.nio.*
 import kotlin.system.*
 
 fun main(args: Array<String>) {
-    val manager = SelectorManager()
-    manager.start()
+    SelectorManager().use { manager ->
+        manager.start()
 
-    future(CommonPool) {
-        manager.socket().use { socket ->
-            socket.connect(InetSocketAddress(9098))
+        future(CommonPool) {
+            manager.socket().use { socket ->
+                socket.connect(InetSocketAddress(9098))
+                println("Connected")
 
-            val bb = ByteBuffer.allocate(8192)
-            val cb = CharBuffer.allocate(8192)
-            val decoder = Charsets.UTF_8.newDecoder()
+                val bb = ByteBuffer.allocate(8192)
+                val cb = CharBuffer.allocate(8192)
+                val decoder = Charsets.UTF_8.newDecoder()
 
-            while (true) {
-                val rc = socket.read(bb)
+                while (true) {
+                    val rc = socket.read(bb)
 
-                bb.flip()
-                decoder.decode(bb, cb, rc == -1)
-                bb.compact()
-                cb.flip()
+                    bb.flip()
+                    decoder.decode(bb, cb, rc == -1)
+                    bb.compact()
+                    cb.flip()
 
-                while (cb.hasRemaining()) {
-                    val eolIndex = cb.indexOf('\n')
-                    val lineChars = if (eolIndex != -1) (eolIndex + 1) else if (rc == -1) cb.remaining() else break
+                    while (cb.hasRemaining()) {
+                        val eolIndex = cb.indexOf('\n')
+                        val lineChars = if (eolIndex != -1) (eolIndex + 1) else if (rc == -1) cb.remaining() else break
 
-                    var endIndex = lineChars
-                    while (endIndex > 0 && cb.get(endIndex - 1).isWhitespace()) {
-                        endIndex--
+                        var endIndex = lineChars
+                        while (endIndex > 0 && cb.get(endIndex - 1).isWhitespace()) {
+                            endIndex--
+                        }
+
+                        if (endIndex > 0) {
+                            processCommand(cb.subSequence(0, endIndex).toString(), socket)
+                        }
+
+                        cb.position(cb.position() + lineChars)
                     }
 
-                    if (endIndex > 0) {
-                        processCommand(cb.subSequence(0, endIndex).toString(), socket)
-                    }
+                    cb.compact()
 
-                    cb.position(cb.position() + lineChars)
+                    if (rc == -1) break
                 }
-
-                cb.compact()
-
-                if (rc == -1) break
             }
-        }
-    }.get()
+        }.get()
+    }
 }
 
 private suspend fun processCommand(line: String, socket: AsyncSocket<*>) {

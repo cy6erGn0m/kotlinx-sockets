@@ -3,6 +3,7 @@ package kotlinx.sockets
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.channels.Channel
+import java.io.*
 import java.nio.channels.*
 
 private tailrec fun selectorLoop(selector: Selector, q: Channel<(Selector) -> Unit>, consumer: (SelectionKey) -> Unit) {
@@ -24,7 +25,7 @@ private tailrec fun selectorLoop(selector: Selector, q: Channel<(Selector) -> Un
     selectorLoop(selector, q, consumer)
 }
 
-class SelectorManager(val dispatcher: CoroutineDispatcher = pool.asCoroutineDispatcher()) {
+class SelectorManager(val dispatcher: CoroutineDispatcher = pool.asCoroutineDispatcher()): AutoCloseable, Closeable {
     private val selector = Selector.open()
     private val q = ArrayChannel<(Selector) -> Unit>(1000)
 
@@ -56,6 +57,10 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = pool.asCoroutineDisp
             registerUnsafe(selectable, selector)
         })
         selector.wakeup()
+    }
+
+    override fun close() {
+        selector.close()
     }
 
     private fun registerUnsafe(selectable: AsyncSelectable, selector: Selector) {
