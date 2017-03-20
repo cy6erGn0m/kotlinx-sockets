@@ -1,5 +1,6 @@
 package kotlinx.sockets
 
+import java.nio.channels.*
 import java.util.concurrent.atomic.*
 
 /**
@@ -21,3 +22,5 @@ internal fun <T : Any> AtomicReference<T?>.take(): T = getAndSet(null) ?: throw 
  * @return true if object was present and [block] was invoked, false otherwise
  */
 internal fun <T : Any> AtomicReference<T?>.invokeIfPresent(block: T.() -> Unit): Boolean = getAndSet(null)?.let { block(it); true } ?: false
+
+internal fun SelectionKey.readyOp(op: Int) = readyOps() and op != 0
