@@ -18,3 +18,5 @@ internal fun AsyncSelectable.interestFlag(selector: SelectorManager, flag: Int, 
         }
     }
 }
+
+internal fun AsyncSelectable.interestPresent(flag: Int): Boolean = interestedOps and flag != 0

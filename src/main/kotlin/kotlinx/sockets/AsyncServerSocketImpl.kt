@@ -28,9 +28,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
     }
 
     suspend override fun onSelected(key: SelectionKey) {
-        if (key.isAcceptable) {
-            acceptContinuation.take().resume(null)
-        } else {
+        if (!key.isAcceptable || !interestPresent(SelectionKey.OP_ACCEPT) || !acceptContinuation.invokeIfPresent { resume(null) }) {
             interest(false)
         }
     }

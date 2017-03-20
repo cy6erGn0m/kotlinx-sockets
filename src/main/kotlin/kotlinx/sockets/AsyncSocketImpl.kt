@@ -31,21 +31,15 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     override suspend fun onSelected(key: SelectionKey) {
-        if (key.isConnectable) {
-            connectContinuation.take().resume(false)
-        } else {
+        if (!key.isConnectable || !interestPresent(SelectionKey.OP_CONNECT) || !connectContinuation.invokeIfPresent { resume(false) }) {
             wantConnect(false)
         }
 
-        if (key.isReadable) {
-            readContinuation.take().resume(Unit)
-        } else {
+        if (!key.isReadable || !interestPresent(SelectionKey.OP_READ) || !readContinuation.invokeIfPresent { resume(Unit) }) {
             wantMoreBytesRead(false)
         }
 
-        if (key.isWritable) {
-            writeContinuation.take().resume(Unit)
-        } else {
+        if (!key.isWritable || !interestPresent(SelectionKey.OP_WRITE) || !writeContinuation.invokeIfPresent { resume(Unit) }) {
             wantMoreSpaceForWrite(false)
         }
     }
