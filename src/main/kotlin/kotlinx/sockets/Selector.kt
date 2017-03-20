@@ -32,13 +32,11 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
     private val q = ArrayChannel<(Selector) -> Unit>(1000)
 
     private val selectorJob = launch(dispatcher, false) {
-        launch(dispatcher, false) {
-            selectorLoop(selector.value, q) { key ->
-                key.interestOps(0)
+        selectorLoop(selector.value, q) { key ->
+            key.interestOps(0)
 
-                launch(dispatcher) {
-                    handleSelectedKey(key)
-                }
+            launch(dispatcher) {
+                handleSelectedKey(key)
             }
         }
     }
