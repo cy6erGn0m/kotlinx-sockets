@@ -17,7 +17,7 @@
 
         <kotlin.version>1.1.1</kotlin.version>
         <junit.version>4.12</junit.version>
-        <coroutines.version>0.13</coroutines.version>
+        <coroutines.version>0.14</coroutines.version>
     </properties>
 
     <dependencies>
