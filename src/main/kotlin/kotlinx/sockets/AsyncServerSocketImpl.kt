@@ -23,7 +23,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
         channel.setOption(name, value)
     }
 
-    override fun bind(localAddress: SocketAddress) {
+    override fun bind(localAddress: SocketAddress?) {
         channel.bind(localAddress)
     }
 

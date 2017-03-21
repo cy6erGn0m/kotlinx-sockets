@@ -20,5 +20,5 @@ interface AsyncSocket : AsyncLocalPeer, AsyncConnection, ReadChannel, WriteChann
 }
 
 interface AsyncServerSocket : AsyncLocalPeer, ConfigurableSocket, SocketSource {
-    fun bind(localAddress: SocketAddress)
+    fun bind(localAddress: SocketAddress?)
 }
