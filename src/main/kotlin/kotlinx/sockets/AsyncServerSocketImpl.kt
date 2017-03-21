@@ -27,13 +27,13 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
         channel.bind(localAddress)
     }
 
-    suspend override fun onSelected(key: SelectionKey) {
+    override fun onSelected(key: SelectionKey) {
         if (onSelectedGeneric(key, SelectionKey.OP_ACCEPT, acceptContinuation) { it.resume(null) }) {
-            pushInterestDirect(selector)
+            pushInterestDirect(key)
         }
     }
 
-    suspend override fun onSelectionFailed(t: Throwable) {
+    override fun onSelectionFailed(t: Throwable) {
         interestedOps = 0
         acceptContinuation.invokeIfPresent { resumeWithException(t) }
     }

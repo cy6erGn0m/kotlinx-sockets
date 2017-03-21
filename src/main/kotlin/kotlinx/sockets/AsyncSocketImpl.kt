@@ -29,17 +29,17 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         channel.setOption(name, value)
     }
 
-    override suspend fun onSelected(key: SelectionKey) {
+    override fun onSelected(key: SelectionKey) {
         val changed = onSelectedGeneric(key, SelectionKey.OP_CONNECT, connectContinuation) { it.resume(false) } or
                 onSelectedGeneric(key, SelectionKey.OP_READ, readContinuation) { it.resume(Unit) } or
                 onSelectedGeneric(key, SelectionKey.OP_WRITE, writeContinuation) { it.resume(Unit) }
 
         if (changed) {
-            pushInterestDirect(selector)
+            pushInterestDirect(key)
         }
     }
 
-    suspend override fun onSelectionFailed(t: Throwable) {
+    override fun onSelectionFailed(t: Throwable) {
         interestedOps = 0
         connectContinuation.invokeIfPresent { resumeWithException(t) }
         readContinuation.invokeIfPresent { resumeWithException(t) }

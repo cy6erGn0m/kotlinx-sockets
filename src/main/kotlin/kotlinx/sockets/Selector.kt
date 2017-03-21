@@ -1,15 +1,15 @@
 package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.channels.*
 import java.io.*
 import java.nio.channels.*
+import java.util.concurrent.*
 
 class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()) : AutoCloseable, Closeable {
     @Volatile
     private var closed = false
     private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open() }
-    private val q = ArrayChannel<AsyncSelectable>(1000)
+    private val q = ArrayBlockingQueue<AsyncSelectable>(1000)
 
     private val selectorJob = launch(dispatcher, false) {
         selectorLoop(selector.value)
@@ -34,8 +34,8 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
         if (selector.isInitialized()) selector.value.close()
     }
 
-    internal suspend fun registerSafe(selectable: AsyncSelectable) {
-        q.send(selectable)
+    internal fun registerSafe(selectable: AsyncSelectable) {
+        q.put(selectable)
         selector.value.wakeup()
     }
 
@@ -62,12 +62,13 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
         try {
             key.interestOps(0)
 
-            launch(dispatcher) {
-                handleSelectedKey(key, null)
-            }
+            handleSelectedKey(key, null)
         } catch (t: Throwable) { // key cancelled or rejected execution
-            launch(dispatcher) {
+            try {
                 handleSelectedKey(key, t)
+            } catch (t2: Throwable) {
+                t.printStackTrace()
+                t2.printStackTrace()
             }
         }
     }
@@ -77,7 +78,7 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
         selectorJob.start()
     }
 
-    private suspend fun handleSelectedKey(key: SelectionKey, t: Throwable?) {
+    private fun handleSelectedKey(key: SelectionKey, t: Throwable?) {
         (key.attachment() as? AsyncSelectable)?.apply {
             if (t != null) {
                 onSelectionFailed(t)

@@ -1,6 +1,5 @@
 package kotlinx.sockets
 
-import kotlinx.coroutines.experimental.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
@@ -9,8 +8,8 @@ interface AsyncSelectable {
     val channel: SelectableChannel
     val interestedOps: Int
 
-    suspend fun onSelected(key: SelectionKey)
-    suspend fun onSelectionFailed(t: Throwable)
+    fun onSelected(key: SelectionKey)
+    fun onSelectionFailed(t: Throwable)
 }
 
 internal abstract class SelectableBase : AsyncSelectable {
@@ -24,15 +23,13 @@ internal fun SelectableBase.interestOp(flag: Int, state: Boolean) {
 
 internal fun AsyncSelectable.pushInterest(selector: SelectorManager) {
     if (interestedOps != 0) {
-        launch(selector.dispatcher) {
-            selector.registerSafe(this@pushInterest)
-        }
+        selector.registerSafe(this@pushInterest)
     }
 }
 
-internal suspend fun AsyncSelectable.pushInterestDirect(selector: SelectorManager) {
+internal fun AsyncSelectable.pushInterestDirect(key: SelectionKey) {
     if (interestedOps != 0) {
-        selector.registerSafe(this)
+        key.interestOps(interestedOps)
     }
 }
 
