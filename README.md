@@ -40,3 +40,11 @@ fun main(args: Array<String>) {
     }
 }
 ```
+
+### Examples
+
+ - [socket echo](src/main/kotlin/kotlinx/sockets/Echo.kt)
+ - [net shell](src/main/kotlin/kotlinx/sockets/NetShell.kt)
+ - [http request](src/main/kotlin/kotlinx/sockets/HttpClient.kt)
+ - [http server](src/main/kotlin/kotlinx/sockets/Server.kt)
+
