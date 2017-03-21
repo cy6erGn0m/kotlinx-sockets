@@ -104,6 +104,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
                 if (rc == 0) {
                     writeContinuation.setHandler("write", c)
                     wantMoreSpaceForWrite()
+                    pushInterest(selector)
 
                     COROUTINE_SUSPENDED
                 } else {
