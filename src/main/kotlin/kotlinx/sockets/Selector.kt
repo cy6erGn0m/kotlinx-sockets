@@ -12,7 +12,10 @@ class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDi
     private val q = ArrayBlockingQueue<AsyncSelectable>(1000)
 
     private val selectorJob = launch(dispatcher, false) {
-        selectorLoop(selector.value)
+        try {
+            selectorLoop(selector.value)
+        } catch (expected: ClosedSelectorException) {
+        }
     }
 
     fun socket(): AsyncSocket {
