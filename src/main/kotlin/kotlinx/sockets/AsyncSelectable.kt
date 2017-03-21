@@ -4,11 +4,28 @@ import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 
+/**
+ * A selectable entity with selectable NIO [channel], [interestedOps] subscriptions
+ */
 interface AsyncSelectable {
+    /**
+     * associated channel
+     */
     val channel: SelectableChannel
+
+    /**
+     * current interests
+     */
     val interestedOps: Int
 
+    /**
+     * called by the selector when [key] is selected
+     */
     fun onSelected(key: SelectionKey)
+
+    /**
+     * called by the selector when selection failed or [onSelected] handled failed
+     */
     fun onSelectionFailed(t: Throwable)
 }
 

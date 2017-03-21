@@ -23,4 +23,7 @@ internal fun <T : Any> AtomicReference<T?>.take(): T = getAndSet(null) ?: throw 
  */
 internal fun <T : Any> AtomicReference<T?>.invokeIfPresent(block: T.() -> Unit): Boolean = getAndSet(null)?.let { block(it); true } ?: false
 
+/**
+ * checks if operation [op] ready. [op] should be one of [SelectionKey] constants.
+ */
 internal fun SelectionKey.readyOp(op: Int) = readyOps() and op != 0

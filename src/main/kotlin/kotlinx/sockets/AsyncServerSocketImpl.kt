@@ -19,8 +19,8 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
     override val localAddress: SocketAddress
         get() = channel.localAddress
 
-    override fun <T> setOption(name: SocketOption<T>, value: T) {
-        channel.setOption(name, value)
+    override fun <T> setOption(option: SocketOption<T>, value: T) {
+        channel.setOption(option, value)
     }
 
     override fun bind(localAddress: SocketAddress?) {

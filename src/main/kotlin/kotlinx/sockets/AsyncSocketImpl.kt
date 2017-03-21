@@ -25,8 +25,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     override val remoteAddress: SocketAddress
         get() = channel.remoteAddress
 
-    override fun <T> setOption(name: SocketOption<T>, value: T) {
-        channel.setOption(name, value)
+    override fun <T> setOption(option: SocketOption<T>, value: T) {
+        channel.setOption(option, value)
     }
 
     override fun onSelected(key: SelectionKey) {

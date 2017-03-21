@@ -5,6 +5,9 @@ import java.io.*
 import java.nio.channels.*
 import java.util.concurrent.*
 
+/**
+ * Represents a coroutine facade for NIO selector and socket factory. Need to be closed to release resources.
+ */
 class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()) : AutoCloseable, Closeable {
     @Volatile
     private var closed = false
@@ -18,6 +21,9 @@ class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispat
         }
     }
 
+    /**
+     * Creates TCP socket that not yet connected
+     */
     fun socket(): AsyncSocket {
         ensureStarted()
         return AsyncSocketImpl(selector.value.provider().openSocketChannel().apply {
@@ -25,6 +31,9 @@ class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispat
         }, this)
     }
 
+    /**
+     * Creates TCP server socket that not yet bound.
+     */
     fun serverSocket(): AsyncServerSocket {
         ensureStarted()
         return AsyncServerSocketImpl(selector.value.provider().openServerSocketChannel().apply {
@@ -32,6 +41,10 @@ class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispat
         }, this)
     }
 
+    /**
+     * Closes instance, releases all resources. All sockets that were created by this instance becomes illegal
+     * and should be closed as well.
+     */
     override fun close() {
         closed = true
         if (selector.isInitialized()) selector.value.close()
