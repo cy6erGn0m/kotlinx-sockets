@@ -1,4 +1,4 @@
-# 🥚 kotlinx sockets (incubating)
+# kotlinx sockets (🥚🥚🥚 incubating)
 
 Kotlinx.sockets is a library to bring rich coroutines experience to NIO sockets, eliminate terrible callbacks and selector loops and related difficult code.
   
