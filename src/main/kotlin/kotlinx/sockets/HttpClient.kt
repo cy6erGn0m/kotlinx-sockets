@@ -1,6 +1,7 @@
 package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
+import java.io.*
 import java.net.*
 import java.nio.*
 
@@ -20,12 +21,10 @@ fun main(args: Array<String>) {
                 val bb = ByteBuffer.allocate(8192)
                 while (true) {
                     bb.clear()
-                    val rc = socket.read(bb)
-
-                    if (rc == -1) break
+                    if (socket.read(bb) == -1) break
 
                     bb.flip()
-                    System.out.write(bb.array(), bb.arrayOffset() + bb.position(), bb.remaining())
+                    System.out.write(bb)
                     System.out.flush()
                 }
 
@@ -33,6 +32,13 @@ fun main(args: Array<String>) {
             }
         }
     }
+}
+
+private fun PrintStream.write(bb: ByteBuffer) {
+    require(bb.hasArray())
+
+    write(bb.array(), bb.arrayOffset() + bb.position(), bb.remaining())
+    bb.position(bb.limit())
 }
 
 private suspend fun AsyncSocket.send(text: String) {

@@ -4,7 +4,7 @@ Kotlinx.sockets is a library to bring rich coroutines experience to NIO sockets,
   
 With the library and kotlin coroutines you can simply write async NIO code in usual synchronous style.
  
-Consider example
+Consider example ([full source](src/main/kotlin/kotlinx/sockets/HttpClient.kt))
   
 ```kotlin
 fun main(args: Array<String>) {
@@ -25,12 +25,10 @@ fun main(args: Array<String>) {
                 val bb = ByteBuffer.allocate(8192)
                 while (true) {
                     bb.clear()
-                    val rc = socket.read(bb)
-
-                    if (rc == -1) break
+                    if (socket.read(bb) == -1) break // async read
 
                     bb.flip()
-                    System.out.write(bb.array(), bb.arrayOffset() + bb.position(), bb.remaining())
+                    System.out.write(bb)
                     System.out.flush()
                 }
 
