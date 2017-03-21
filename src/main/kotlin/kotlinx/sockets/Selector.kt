@@ -5,7 +5,7 @@ import java.io.*
 import java.nio.channels.*
 import java.util.concurrent.*
 
-class SelectorManager(val dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()) : AutoCloseable, Closeable {
+class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()) : AutoCloseable, Closeable {
     @Volatile
     private var closed = false
     private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open() }
