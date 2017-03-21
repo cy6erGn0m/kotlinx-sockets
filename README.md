@@ -40,6 +40,3 @@ fun main(args: Array<String>) {
     }
 }
 ```
-
-Notice: it will actually hang at end of response because client must close connection. To achieve this we have to parse HTTP response that is omitted for example simplicity.
-
