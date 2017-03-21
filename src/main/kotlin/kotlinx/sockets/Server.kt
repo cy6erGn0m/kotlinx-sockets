@@ -63,7 +63,7 @@ private suspend fun handleClient(client: AsyncSocket) {
                 else -> {
                     val connection = request.header("Connection").singleOrNull()?.value(request.headersBody) ?: defaultConnectionForVersion(request.version)
 
-                    client.respond(200, "OK", request.version, connection, "OK")
+                    client.respond(200, "OK", request.version, connection, "Hello, World!")
 
                     if (connection.equals("close", ignoreCase = true)) {
                         break@loop
@@ -80,10 +80,16 @@ private fun defaultConnectionForVersion(version: String) = if (version == "HTTP/
 
 private suspend fun WriteChannel.respond(code: Int, statusMessage: String, version: String, connection: String, content: String) {
     write(ByteBuffer.wrap(buildString(256) {
-        append("$version $code $statusMessage\r\n")
-        append("Connection: $connection\r\n")
+        append(version)
+        append(' ')
+        append(code)
+        append(' ')
+        append(statusMessage)
+        append("\r\n")
+
+        append("Connection: "); append(connection); append("\r\n")
         append("Content-Type: text/plain\r\n")
-        append("Content-Length: ${content.length + 2}\r\n")
+        append("Content-Length: "); append((content.length + 2).toString()); append("\r\n")
         append("\r\n")
         append(content)
         append("\r\n")
@@ -384,8 +390,7 @@ private class ByteArrayBuilder(estimate: Int = 128) {
         if (source.hasArray()) {
             val index = size
             System.arraycopy(source.array(), source.arrayOffset() + start, array, index, length)
-            array[index + length] = '|'.toByte()
-            size += length + 1
+            size += length
 
             return index
         } else {
