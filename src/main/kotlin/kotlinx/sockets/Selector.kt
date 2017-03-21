@@ -8,7 +8,7 @@ import java.util.concurrent.*
 class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispatcher()) : AutoCloseable, Closeable {
     @Volatile
     private var closed = false
-    private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open() }
+    private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open()!! }
     private val q = ArrayBlockingQueue<AsyncSelectable>(1000)
 
     private val selectorJob = launch(dispatcher, false) {

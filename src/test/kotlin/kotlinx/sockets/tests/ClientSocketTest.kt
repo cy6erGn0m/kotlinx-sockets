@@ -122,7 +122,7 @@ class ClientSocketTest {
 
     private fun server(block: (Socket) -> Unit) {
         val server = ServerSocket(0)
-        val thread = thread {
+        val thread = thread(start = false) {
             while (true) {
                 val client = try { server.accept() } catch (t: Throwable) { break }
 
@@ -135,5 +135,6 @@ class ClientSocketTest {
         }
 
         this.server = Pair(server, thread)
+        thread.start()
     }
 }
