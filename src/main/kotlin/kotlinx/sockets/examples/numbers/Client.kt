@@ -5,6 +5,7 @@ import kotlinx.sockets.*
 import java.io.*
 import java.net.*
 import java.util.*
+import kotlin.system.*
 
 fun main(args: Array<String>) {
     runBlocking {
@@ -13,7 +14,11 @@ fun main(args: Array<String>) {
                 socket.connect(InetSocketAddress(9096))
                 println("Connected")
 
-                main(socket.asCharChannel().buffered(), socket.asCharWriteChannel())
+                val time = measureTimeMillis {
+                    main(socket.asCharChannel().buffered(), socket.asCharWriteChannel())
+                }
+
+                println("time: $time ms")
             }
         }
     }
@@ -32,11 +37,11 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
 
     val rnd = Random()
 
-    for (i in 1..100) {
+    for (i in 1..200) {
         sum(input, output, rnd)
     }
 
-    for (i in 1..100) {
+    for (i in 1..200) {
         avg(input, output, rnd)
     }
 
@@ -53,8 +58,10 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
 private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
     val numbers = rnd.randomNumbers()
 
-    output.write("SUM\n")
-    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write(numbers.joinToString(",", prefix = "SUM\n", postfix = "\n"))
+//
+//    output.write("SUM\n")
+//    output.write(numbers.joinToString(",", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
@@ -72,8 +79,10 @@ private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel
 private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
     val numbers = rnd.randomNumbers()
 
-    output.write("AVG\n")
-    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write(numbers.joinToString(",", prefix = "AVG\n", postfix = "\n"))
+//
+//    output.write("AVG\n")
+//    output.write(numbers.joinToString(",", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
@@ -82,9 +91,9 @@ private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel
     }
 
     if (result != numbers.average()) {
-        throw IOException("Server response for AVG($numbers) is $result but should be ${numbers.sum()} ")
+        throw IOException("Server response for AVG($numbers) is $result but should be ${numbers.average()} ")
     } else {
-        println("SUM($numbers) = $result")
+        println("AVG($numbers) = $result")
     }
 }
 
