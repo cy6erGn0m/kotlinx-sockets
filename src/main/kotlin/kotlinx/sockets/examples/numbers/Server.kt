@@ -3,7 +3,6 @@ package kotlinx.sockets.examples.numbers
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import java.net.*
-import java.nio.*
 import java.util.logging.*
 
 fun main(args: Array<String>) {

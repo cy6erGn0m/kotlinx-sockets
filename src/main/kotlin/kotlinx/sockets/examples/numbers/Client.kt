@@ -11,6 +11,7 @@ fun main(args: Array<String>) {
     runBlocking {
         SelectorManager().use { selector ->
             selector.socket().use { socket ->
+                socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
                 socket.connect(InetSocketAddress(9096))
                 println("Connected")
 
@@ -58,10 +59,8 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
 private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
     val numbers = rnd.randomNumbers()
 
-    output.write(numbers.joinToString(",", prefix = "SUM\n", postfix = "\n"))
-//
-//    output.write("SUM\n")
-//    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write("SUM\n")
+    output.write(numbers.joinToString(",", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
@@ -79,10 +78,8 @@ private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel
 private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
     val numbers = rnd.randomNumbers()
 
-    output.write(numbers.joinToString(",", prefix = "AVG\n", postfix = "\n"))
-//
-//    output.write("AVG\n")
-//    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write("AVG\n")
+    output.write(numbers.joinToString(",", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
