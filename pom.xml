@@ -13,6 +13,7 @@
 
     <modules>
         <module>kotlin-sockets</module>
+        <module>examples</module>
     </modules>
 
     <properties>
