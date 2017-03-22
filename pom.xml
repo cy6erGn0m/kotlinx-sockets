@@ -7,12 +7,13 @@
     <groupId>com.github.cy6erGn0m</groupId>
     <artifactId>kotlin-sockets-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <modules>
-        <module>kotlin-sockets</module>
-    </modules>
     <packaging>pom</packaging>
 
     <name>Kotlinx sockets</name>
+
+    <modules>
+        <module>kotlin-sockets</module>
+    </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
