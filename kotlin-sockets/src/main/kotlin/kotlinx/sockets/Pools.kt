@@ -1,5 +1,6 @@
 package kotlinx.sockets
 
+import kotlinx.coroutines.experimental.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.*
 
@@ -12,3 +13,6 @@ internal val ioPool = ThreadPoolExecutor(cpuCount + 1, cpuCount * 2 + 1, 10L, Ti
         isDaemon = true
     }
 })
+
+internal val ioCoroutineDispatcher = ioPool.asCoroutineDispatcher()
+

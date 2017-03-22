@@ -6,7 +6,7 @@ import java.nio.*
 import java.nio.charset.*
 
 fun ReadChannel.receiveTo(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
-    return launch(ioPool.asCoroutineDispatcher(), start = false) {
+    return launch(ioCoroutineDispatcher, start = false) {
         while (!channel.isClosedForSend) {
             val bb = pool.receive()
             bb.clear()
@@ -32,7 +32,7 @@ fun ReadChannel.receiveTo(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer
 }
 
 fun WriteChannel.sendFrom(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
-    return launch(ioPool.asCoroutineDispatcher(), start = false) {
+    return launch(ioCoroutineDispatcher, start = false) {
         var pushBack: ByteBuffer? = null
 
         while (!channel.isClosedForReceive) {
@@ -83,7 +83,7 @@ fun WriteChannel.sendFrom(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer
 }
 
 fun WriteChannel.sendFrom(channel: Channel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
-    return launch(ioCoroutinesDispatcher) {
+    return launch(ioCoroutineDispatcher) {
         val encoder = charset.newEncoder()!!
         var pushBack: CharBuffer? = null
 
