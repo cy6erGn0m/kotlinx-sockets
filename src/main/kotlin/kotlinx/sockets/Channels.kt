@@ -36,3 +36,43 @@ interface SocketSource : Closeable {
      */
     suspend fun accept(): AsyncSocket
 }
+
+/**
+ * Represents a character channel from one can read
+ */
+interface CharReadChannel : Closeable {
+    /**
+     * Reads characters to the given [dst] buffer, suspends when no characters available yet
+     * or returns -1 if end of stream reached.
+     */
+    suspend fun read(dst: CharBuffer): Int
+}
+
+/**
+ * Represents a character channel to whoch one can write characters
+ */
+interface CharWriteChannel : Closeable {
+    /**
+     * Writes characters from given [src] to the channel
+     */
+    suspend fun write(src: CharBuffer)
+}
+
+/**
+ * Represents a buffered channel from one can read characters as from [CharReadChannel], [read] a single character
+ * or [readLine].
+ */
+interface BufferedCharReadChannel : CharReadChannel {
+    /**
+     * Reads single character from the channel. Could suspend if the internal buffer is empty and no
+     * characters available yet
+     * @return a character or -1 if end of stream reached
+     */
+    suspend fun read(): Int
+
+    /**
+     * Reads line from the channel. Uses [StringBuilder] as line buffer and the internal buffer. Reads and suspends
+     * when needed until end of line reached. Internally uses [readLineTo] implementation.
+     */
+    suspend fun readLine(): String?
+}
