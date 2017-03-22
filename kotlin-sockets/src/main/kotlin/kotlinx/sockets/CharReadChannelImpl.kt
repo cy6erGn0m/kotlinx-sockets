@@ -6,7 +6,7 @@ import java.nio.charset.*
 internal class CharReadChannelImpl(val source: ReadChannel, val charset: Charset, val buffer: ByteBuffer) : CharReadChannel {
     private val decoder by lazy { charset.newDecoder()!! }
 
-    suspend tailrec override fun read(dst: CharBuffer): Int {
+    suspend override fun read(dst: CharBuffer): Int {
         val before = dst.position()
         val rc = source.read(buffer)
 
