@@ -4,7 +4,7 @@ Kotlinx.sockets is a library to bring rich coroutines experience to NIO sockets,
   
 With the library and kotlin coroutines you can simply write async NIO code in usual synchronous style.
  
-Consider example ([full source](src/main/kotlin/kotlinx/sockets/HttpClient.kt))
+Consider example ([full source](src/main/kotlin/kotlinx/sockets/examples/HttpClient.kt))
   
 ```kotlin
 fun main(args: Array<String>) {
@@ -42,8 +42,8 @@ fun main(args: Array<String>) {
 ### Examples
 
  - [socket echo](src/main/kotlin/kotlinx/sockets/Echo.kt)
- - [net shell](src/main/kotlin/kotlinx/sockets/NetShell.kt)
- - [http request](src/main/kotlin/kotlinx/sockets/HttpClient.kt)
- - [http server](src/main/kotlin/kotlinx/sockets/Server.kt)
+ - [net shell](src/main/kotlin/kotlinx/sockets/examples/NetShell.kt)
+ - [http request](src/main/kotlin/kotlinx/sockets/examples/HttpClient.kt)
+ - [http server](src/main/kotlin/kotlinx/sockets/examples/Server.kt)
  - [numbers client and server](src/main/kotlin/kotlinx/sockets/examples/numbers)
 

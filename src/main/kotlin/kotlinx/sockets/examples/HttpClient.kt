@@ -1,6 +1,7 @@
-package kotlinx.sockets
+package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.sockets.*
 import java.io.*
 import java.net.*
 import java.nio.*
