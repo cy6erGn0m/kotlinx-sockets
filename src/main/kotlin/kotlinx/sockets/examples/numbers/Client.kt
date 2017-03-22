@@ -23,7 +23,8 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
     output.write("HELLO\n")
     when (input.readLine()) {
         null -> return
-        "EHLLO" -> {}
+        "EHLLO" -> {
+        }
         else -> {
             throw IOException("Wrong server response")
         }
@@ -32,34 +33,59 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
     val rnd = Random()
 
     for (i in 1..100) {
-        val numbers = rnd.randomNumbers()
-        val result = sum(input, output, numbers)
+        sum(input, output, rnd)
+    }
 
-        if (result != numbers.sum()) {
-            throw IOException("Server response for SUM($numbers) is $result but should be ${numbers.sum()} ")
-        } else {
-            println("SUM($numbers) = $result")
-        }
+    for (i in 1..100) {
+        avg(input, output, rnd)
     }
 
     output.write("BYE\n")
     do {
         when (input.readLine()) {
             "BYE", null -> return
-            else -> {}
+            else -> {
+            }
         }
     } while (true)
 }
 
-private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, numbers: List<Int>): Int {
+private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
+    val numbers = rnd.randomNumbers()
+
     output.write("SUM\n")
     output.write(numbers.joinToString(",", postfix = "\n"))
 
     val response = input.readLine()
-    return when (response) {
+    val result = when (response) {
         null -> throw IOException("Unexpected EOF")
         else -> response.trim().toInt()
     }
+
+    if (result != numbers.sum()) {
+        throw IOException("Server response for SUM($numbers) is $result but should be ${numbers.sum()} ")
+    } else {
+        println("SUM($numbers) = $result")
+    }
 }
 
-private fun Random.randomNumbers() = (1..nextInt(10)).map { nextInt(50) }
+private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
+    val numbers = rnd.randomNumbers()
+
+    output.write("AVG\n")
+    output.write(numbers.joinToString(",", postfix = "\n"))
+
+    val response = input.readLine()
+    val result = when (response) {
+        null -> throw IOException("Unexpected EOF")
+        else -> response.trim().toDouble()
+    }
+
+    if (result != numbers.average()) {
+        throw IOException("Server response for AVG($numbers) is $result but should be ${numbers.sum()} ")
+    } else {
+        println("SUM($numbers) = $result")
+    }
+}
+
+private fun Random.randomNumbers() = (1..1 + nextInt(10)).map { nextInt(50) }
