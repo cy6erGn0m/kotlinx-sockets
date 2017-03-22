@@ -8,24 +8,34 @@ import java.util.*
 import kotlin.system.*
 
 fun main(args: Array<String>) {
-    runBlocking {
+    numbersClient(9096, true)
+}
+
+fun numbersClient(port: Int, log: Boolean): Long {
+    return runBlocking {
         SelectorManager().use { selector ->
             selector.socket().use { socket ->
                 socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
-                socket.connect(InetSocketAddress(9096))
-                println("Connected")
-
-                val time = measureTimeMillis {
-                    main(socket.asCharChannel().buffered(), socket.asCharWriteChannel())
+                socket.connect(InetSocketAddress(port))
+                if (log) {
+                    println("Connected")
                 }
 
-                println("time: $time ms")
+                val time = measureTimeMillis {
+                    main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
+                }
+
+                if (log) {
+                    println("time: $time ms")
+                }
+
+                time
             }
         }
     }
 }
 
-private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChannel) {
+private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChannel, log: Boolean) {
     output.write("HELLO\n")
     when (input.readLine()) {
         null -> return
@@ -39,11 +49,11 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
     val rnd = Random()
 
     for (i in 1..200) {
-        sum(input, output, rnd)
+        sum(input, output, rnd, log)
     }
 
     for (i in 1..200) {
-        avg(input, output, rnd)
+        avg(input, output, rnd, log)
     }
 
     output.write("BYE\n")
@@ -56,7 +66,7 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
     } while (true)
 }
 
-private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
+private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
     output.write("SUM\n")
@@ -70,12 +80,12 @@ private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel
 
     if (result != numbers.sum()) {
         throw IOException("Server response for SUM($numbers) is $result but should be ${numbers.sum()} ")
-    } else {
+    } else if (log) {
         println("SUM($numbers) = $result")
     }
 }
 
-private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random) {
+private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
     output.write("AVG\n")
@@ -89,7 +99,7 @@ private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel
 
     if (result != numbers.average()) {
         throw IOException("Server response for AVG($numbers) is $result but should be ${numbers.average()} ")
-    } else {
+    } else if (log) {
         println("AVG($numbers) = $result")
     }
 }

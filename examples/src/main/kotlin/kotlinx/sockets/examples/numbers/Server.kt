@@ -6,28 +6,36 @@ import java.net.*
 import java.util.logging.*
 
 fun main(args: Array<String>) {
-    runBlocking {
-        SelectorManager().use { selector ->
-            selector.serverSocket().use { server ->
-                server.bind(InetSocketAddress(9096))
+    startNumbersServer(9096)
+}
 
-                while (true) {
-                    var client: AsyncSocket? = null
-                    try {
-                        client = server.accept()
-                        launch(CommonPool) {
-                            client!!.use {
-                                runClient(it)
-                            }
-                        }
-                    } catch (t: Throwable) {
-                        Logger.getLogger("acceptor").log(Level.SEVERE, "Failed to handle client", t)
-                        client?.close()
+fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket {
+    val selector = SelectorManager()
+    val server = selector.serverSocket()
+    server.bind(port?.let(::InetSocketAddress))
+
+    launch(CommonPool) {
+        onBound()
+        while (true) {
+            var client: AsyncSocket? = null
+            try {
+                client = server.accept()
+                launch(CommonPool) {
+                    client!!.use {
+                        runClient(it)
                     }
                 }
+            } catch (t: Throwable) {
+                Logger.getLogger("acceptor").log(Level.SEVERE, "Failed to handle client", t)
+                client?.close()
             }
         }
+    }.invokeOnCompletion {
+        server.close()
+        selector.close()
     }
+
+    return server
 }
 
 private suspend fun runClient(client: AsyncSocket) {
@@ -35,10 +43,11 @@ private suspend fun runClient(client: AsyncSocket) {
     val output = client.asCharWriteChannel()
     val logger = Logger.getLogger("client")
 
-    hello@while (true) {
+    hello@ while (true) {
         when (input.readLine()) {
             null -> return
-            "" -> {}
+            "" -> {
+            }
             "HELLO" -> {
                 output.write("EHLLO\n")
                 break@hello
@@ -51,7 +60,7 @@ private suspend fun runClient(client: AsyncSocket) {
         }
     }
 
-    command@while (true) {
+    command@ while (true) {
         val command = input.readLine() ?: return
         when (command) {
             "" -> continue@command
