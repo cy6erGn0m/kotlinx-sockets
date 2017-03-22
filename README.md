@@ -45,4 +45,5 @@ fun main(args: Array<String>) {
  - [net shell](src/main/kotlin/kotlinx/sockets/NetShell.kt)
  - [http request](src/main/kotlin/kotlinx/sockets/HttpClient.kt)
  - [http server](src/main/kotlin/kotlinx/sockets/Server.kt)
+ - [numbers client and server](src/main/kotlin/kotlinx/sockets/examples/numbers)
 
