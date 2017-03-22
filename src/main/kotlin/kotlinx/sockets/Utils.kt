@@ -1,7 +1,20 @@
 package kotlinx.sockets
 
+import java.nio.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
+
+suspend fun ReadChannel.readFully(dst: ByteBuffer) {
+    do {
+        read(dst)
+    } while (dst.hasRemaining())
+}
+
+suspend fun WriteChannel.writeFully(src: ByteBuffer) {
+    do {
+        write(src)
+    } while (src.hasRemaining())
+}
 
 /**
  * Attempts to set handler atomically or throws [IllegalStateException] if a handler has been already set
