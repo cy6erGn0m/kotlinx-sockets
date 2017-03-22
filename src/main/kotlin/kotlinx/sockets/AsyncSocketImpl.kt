@@ -80,7 +80,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             val rc = suspendCoroutineOrReturn<Any> { c ->
                 val rc = channel.read(dst)
 
-                if (rc == 0) {
+                if (rc == 0 && dst.hasRemaining()) {
                     readContinuation.setHandler("read", c)
                     wantMoreBytesRead()
                     pushInterest(selector)
@@ -101,7 +101,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             suspendCoroutineOrReturn<Unit> { c ->
                 val rc = channel.write(src)
 
-                if (rc == 0) {
+                if (rc == 0 && src.hasRemaining()) {
                     writeContinuation.setHandler("write", c)
                     wantMoreSpaceForWrite()
                     pushInterest(selector)
