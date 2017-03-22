@@ -16,8 +16,6 @@ fun main(args: Array<String>) {
     }
 
     runBlocking {
-        val dispatcher = ioPool.asCoroutineDispatcher()
-
         SelectorManager().use { s ->
             s.serverSocket().use { server ->
                 server.bind(InetSocketAddress(9094))
@@ -25,7 +23,7 @@ fun main(args: Array<String>) {
                 while (true) {
                     try {
                         val client = server.accept()
-                        launch(dispatcher) {
+                        launch(CommonPool) {
                             client.use {
                                 handleClient(client)
                             }
