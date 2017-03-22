@@ -58,13 +58,11 @@ class SelectorManager(dispatcher: CoroutineDispatcher = ioPool.asCoroutineDispat
     private tailrec fun selectorLoop(selector: Selector) {
         if (selector.select() > 0) {
             val keys = selector.selectedKeys().iterator()
-            var count = 0
             while (keys.hasNext()) {
                 val key = keys.next()
                 keys.remove()
 
                 handleKey(key)
-                count++
             }
         }
 
