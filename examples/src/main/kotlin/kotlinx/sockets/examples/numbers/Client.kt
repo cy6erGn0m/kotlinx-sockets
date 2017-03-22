@@ -12,7 +12,7 @@ fun main(args: Array<String>) {
 }
 
 fun numbersClient(port: Int, log: Boolean): Long {
-    return runBlocking {
+    return runBlocking(CommonPool) {
         SelectorManager().use { selector ->
             selector.socket().use { socket ->
                 socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
