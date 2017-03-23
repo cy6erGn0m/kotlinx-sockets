@@ -2,6 +2,7 @@ package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
 import java.io.*
+import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.*
 
@@ -29,6 +30,10 @@ class SelectorManager(dispatcher: CoroutineDispatcher = ioCoroutineDispatcher) :
         return AsyncSocketImpl(selector.value.provider().openSocketChannel().apply {
             configureBlocking(false)
         }, this)
+    }
+
+    suspend fun socket(address: SocketAddress) {
+        socket().apply { connect(address) }
     }
 
     /**
