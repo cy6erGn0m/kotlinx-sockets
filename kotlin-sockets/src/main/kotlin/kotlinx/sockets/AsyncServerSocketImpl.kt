@@ -36,6 +36,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
     override fun onSelectionFailed(t: Throwable) {
         interestedOps = 0
         acceptContinuation.invokeIfPresent { resumeWithException(t) }
+        interestedOps = 0
     }
 
     suspend override fun accept(): AsyncSocket {
@@ -64,6 +65,13 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
 
     override fun close() {
         interestedOps = 0
-        channel.close()
+        try {
+            channel.close()
+        } finally {
+            try {
+                onSelectionFailed(ClosedChannelException())
+            } catch (expected: CancelledKeyException) {
+            }
+        }
     }
 }

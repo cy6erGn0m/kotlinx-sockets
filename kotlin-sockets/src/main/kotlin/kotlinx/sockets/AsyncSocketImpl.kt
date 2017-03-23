@@ -44,6 +44,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         connectContinuation.invokeIfPresent { resumeWithException(t) }
         readContinuation.invokeIfPresent { resumeWithException(t) }
         writeContinuation.invokeIfPresent { resumeWithException(t) }
+        interestedOps = 0
     }
 
     override suspend fun connect(address: SocketAddress) {
@@ -117,8 +118,10 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     override fun close() {
-        interestedOps = 0
         channel.close()
+
+        val closed = ClosedChannelException()
+        onSelectionFailed(closed)
     }
 
     private fun wantConnect(state: Boolean = true) {
