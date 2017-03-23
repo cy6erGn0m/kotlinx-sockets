@@ -14,11 +14,8 @@ fun main(args: Array<String>) {
             selector.socket().use { socket ->
                 socket.connect(InetSocketAddress("google.com", 80))
 
-                val out = ArrayChannel<String>(10)
-                val input = ArrayChannel<ByteBuffer>(2)
-
-                socket.receiveTo(input, pool).start()
-                socket.sendFrom(out, Charsets.ISO_8859_1, pool).start()
+                val out = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
+                val input = socket.openReceiveChannel(pool)
 
                 out.send("GET / HTTP/1.1\r\n")
                 out.send("Host: www.google.com\r\n")
