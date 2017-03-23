@@ -1,12 +1,13 @@
 package kotlinx.sockets
 
+import kotlinx.coroutines.experimental.*
 import java.io.*
 import java.nio.*
 
 /**
  * Represents a readable channel
  */
-interface ReadChannel : Closeable {
+interface ReadChannel : Closeable, DisposableHandle {
     /**
      * Reads bytes from the channel to the given [dst] byte buffer. Suspends if no bytes available yet and
      * no end of stream reached.
@@ -18,7 +19,7 @@ interface ReadChannel : Closeable {
 /**
  * Represents a writable channel
  */
-interface WriteChannel : Closeable {
+interface WriteChannel : Closeable, DisposableHandle {
     /**
      * Writes bytes from the [src] byte buffer to the channel. Returns when only part or all of bytes were written
      * and updates buffer's position accordingly. Suspends if no bytes could be written immediately.
@@ -29,7 +30,7 @@ interface WriteChannel : Closeable {
 /**
  * Represents a socket source, for example server socket
  */
-interface SocketSource : Closeable {
+interface SocketSource : Closeable, DisposableHandle {
     /**
      * accepts socket connection or suspends if none yet available.
      * @return accepted socket
@@ -40,29 +41,37 @@ interface SocketSource : Closeable {
 /**
  * Represents a character channel from one can read
  */
-interface CharReadChannel : Closeable {
+interface CharReadChannel : Closeable, DisposableHandle {
     /**
      * Reads characters to the given [dst] buffer, suspends when no characters available yet
      * or returns -1 if end of stream reached.
      */
     suspend fun read(dst: CharBuffer): Int
+
+    override fun dispose() {
+        close()
+    }
 }
 
 /**
  * Represents a character channel to whoch one can write characters
  */
-interface CharWriteChannel : Closeable {
+interface CharWriteChannel : Closeable, DisposableHandle {
     /**
      * Writes characters from given [src] to the channel
      */
     suspend fun write(src: CharBuffer)
+
+    override fun dispose() {
+        close()
+    }
 }
 
 /**
  * Represents a buffered channel from one can read characters as from [CharReadChannel], [read] a single character
  * or [readLine].
  */
-interface BufferedCharReadChannel : CharReadChannel {
+interface BufferedCharReadChannel : CharReadChannel, DisposableHandle {
     /**
      * Reads single character from the channel. Could suspend if the internal buffer is empty and no
      * characters available yet
