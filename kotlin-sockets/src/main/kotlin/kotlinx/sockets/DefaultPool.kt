@@ -5,7 +5,7 @@ import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
 import java.util.concurrent.*
 
-fun runDefaultByteBufferPool(capacity: Int): Channel<ByteBuffer> {
+fun runDefaultByteBufferPool(capacity: Int = 1000): Channel<ByteBuffer> {
     return runDefaultByteBufferPool(ArrayChannel<ByteBuffer>(capacity))
 }
 
