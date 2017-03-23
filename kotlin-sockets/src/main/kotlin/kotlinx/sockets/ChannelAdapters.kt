@@ -28,6 +28,8 @@ fun ReadChannel.receiveTo(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer
                 channel.send(bb)
             }
         }
+    }.apply {
+        invokeOnCompletion { t -> channel.close(t) }
     }
 }
 
@@ -75,15 +77,13 @@ fun WriteChannel.sendFrom(channel: Channel<ByteBuffer>, pool: Channel<ByteBuffer
         }
     }.apply {
         invokeOnCompletion { t ->
-            if (t != null) {
-                channel.close(t)
-            }
+            channel.close(t)
         }
     }
 }
 
 fun WriteChannel.sendFrom(channel: Channel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
-    return launch(ioCoroutineDispatcher) {
+    return launch(ioCoroutineDispatcher, start = false) {
         val encoder = charset.newEncoder()!!
         var pushBack: CharBuffer? = null
 
@@ -111,9 +111,7 @@ fun WriteChannel.sendFrom(channel: Channel<String>, charset: Charset, pool: Chan
         }
     }.apply {
         invokeOnCompletion { t ->
-            if (t != null) {
-                channel.close(t)
-            }
+            channel.close(t)
         }
     }
 }
