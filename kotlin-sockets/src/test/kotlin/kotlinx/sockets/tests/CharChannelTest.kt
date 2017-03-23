@@ -158,5 +158,9 @@ class CharChannelTest {
         override fun close() {
             buffer = null
         }
+
+        override fun dispose() {
+            close()
+        }
     }
 }
