@@ -24,7 +24,7 @@
 
         <kotlin.version>1.1.1</kotlin.version>
         <junit.version>4.12</junit.version>
-        <coroutines.version>0.14</coroutines.version>
+        <coroutines.version>0.14.1</coroutines.version>
         <jmh.version>1.18</jmh.version>
     </properties>
 
@@ -106,6 +106,10 @@
         <repository>
             <id>kotlin-eap</id>
             <url>https://dl.bintray.com/kotlin/kotlin-eap-1.1</url>
+        </repository>
+        <repository>
+            <id>kotlinx</id>
+            <url>https://dl.bintray.com/kotlin/kotlinx</url>
         </repository>
     </repositories>
 </project>
