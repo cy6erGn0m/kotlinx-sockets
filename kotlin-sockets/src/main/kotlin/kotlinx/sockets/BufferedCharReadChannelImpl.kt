@@ -3,6 +3,8 @@ package kotlinx.sockets
 import java.nio.*
 
 internal class BufferedCharReadChannelImpl(val source: CharReadChannel, private var buffer: CharBuffer) : BufferedCharReadChannel {
+    private val sb by lazy(::StringBuilder)
+
     suspend override fun read(dst: CharBuffer): Int {
         if (fill()) return -1
 
@@ -25,7 +27,8 @@ internal class BufferedCharReadChannelImpl(val source: CharReadChannel, private 
             return null
         }
 
-        return source.readLineTo(StringBuilder(), buffer).first.toString()
+        sb.delete(0, sb.length)
+        return source.readLineTo(sb, buffer).first.toString()
     }
 
     override fun close() {

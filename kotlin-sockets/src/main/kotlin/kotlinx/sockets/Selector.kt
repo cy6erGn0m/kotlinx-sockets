@@ -5,11 +5,12 @@ import java.io.*
 import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.*
+import kotlin.coroutines.experimental.*
 
 /**
  * Represents a coroutine facade for NIO selector and socket factory. Need to be closed to release resources.
  */
-class SelectorManager(dispatcher: CoroutineDispatcher = ioCoroutineDispatcher) : AutoCloseable, Closeable {
+class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, Closeable {
     @Volatile
     private var closed = false
     private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open()!! }

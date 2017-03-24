@@ -2,16 +2,18 @@ package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
+import kotlinx.coroutines.experimental.channels.Channel
 import java.nio.*
+import java.nio.channels.*
 import java.nio.charset.*
 
 fun ReadChannel.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<ByteBuffer> {
     return openReceiveChannel(pool, capacity) { it }
 }
 
-fun <C : ReadChannel, R> C.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, onReceive: C.(ByteBuffer) -> R): ProducerJob<R> {
+fun <C : ReadChannel, R> C.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(ByteBuffer) -> R): ProducerJob<R> {
     return produce(ioCoroutineDispatcher, capacity) {
-        receiveLoop(this@openReceiveChannel, channel, pool, onReceive)
+        receiveLoop(this@openReceiveChannel, channel, pool, transform)
     }
 }
 
@@ -19,15 +21,15 @@ fun ReadChannel.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBu
     return receiveTo(channel, pool, { it })
 }
 
-fun <C : ReadChannel, R> C.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, onReceive: C.(ByteBuffer) -> R): Job {
+fun <C : ReadChannel, R> C.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R): Job {
     return launch(ioCoroutineDispatcher, start = false) {
-        receiveLoop(this@receiveTo, channel, pool, onReceive)
+        receiveLoop(this@receiveTo, channel, pool, transform)
     }
 }
 
-private suspend fun <C : ReadChannel, R> receiveLoop(source: C, channel: SendChannel<R>, pool: Channel<ByteBuffer>, onReceive: C.(ByteBuffer) -> R) {
+private suspend fun <C : ReadChannel, R> receiveLoop(source: C, channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R) {
     while (true) {
-        val bb = pool.receiveOrNull() ?: break
+        val bb = pool.receive()
         bb.clear()
 
         val rc = try {
@@ -42,8 +44,86 @@ private suspend fun <C : ReadChannel, R> receiveLoop(source: C, channel: SendCha
             break
         } else {
             bb.flip()
-            channel.send(onReceive(source, bb))
+            channel.send(transform(source, bb))
         }
+    }
+}
+
+fun ReadChannel.receiveLinesTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
+    return receiveLinesTo(destination, charset, pool) { it }
+}
+
+fun <C : ReadChannel, R> C.receiveLinesTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
+    return launch(ioCoroutineDispatcher, start = false) {
+        receiveLinesLoop(this@receiveLinesTo, destination, charset, pool, transform)
+    }
+}
+
+fun ReadChannel.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
+    return openLinesReceiveChannel(charset, pool, capacity) { it }
+}
+
+fun <C : ReadChannel, R> C.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
+    return produce(ioCoroutineDispatcher, capacity) {
+        receiveLinesLoop(this@openLinesReceiveChannel, this, charset, pool, transform)
+    }
+}
+
+fun ReadChannel.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
+    return openTextReceiveChannel(charset, pool, capacity) { it }
+}
+
+fun <C : ReadChannel, R> C.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
+    return produce(ioCoroutineDispatcher, capacity) {
+        receiveTextLoop(this@openTextReceiveChannel, this, charset, pool, transform)
+    }
+}
+
+fun ReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
+    return receiveTextTo(destination, charset, pool) { it }
+}
+
+fun <C : ReadChannel, R> C.receiveTextTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
+    return launch(ioCoroutineDispatcher, start = false) {
+        receiveTextLoop(this@receiveTextTo, destination, charset, pool, transform)
+    }
+}
+
+private suspend fun <C : ReadChannel, R> receiveTextLoop(source: C, destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R) {
+    val buffer = pool.receive()
+    val chs = source.asCharChannel(charset, buffer)
+
+    val blockBuffer = pool.receive().apply { clear() }
+    val charBuffer = blockBuffer.asCharBuffer()
+
+    try {
+        while (true) {
+            charBuffer.clear()
+            if (chs.read(charBuffer) == -1) break
+            charBuffer.flip()
+            val text = charBuffer.toString()
+
+            destination.send(transform(source, text))
+        }
+    } finally {
+        pool.offer(buffer)
+        pool.offer(blockBuffer)
+    }
+}
+
+private suspend fun <C : ReadChannel, R> receiveLinesLoop(source: C, destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R) {
+    val buffer = pool.receive()
+    val charBuffer = pool.receive()
+    val chs = source.asCharChannel(charset, buffer).buffered { charBuffer.asCharBuffer() }
+
+    try {
+        while (true) {
+            val line = chs.readLine() ?: break
+            destination.send(transform(source, line))
+        }
+    } finally {
+        pool.offer(buffer)
+        pool.offer(charBuffer)
     }
 }
 
@@ -186,7 +266,7 @@ fun <T : ASocket, S : SocketSource<T>, R> S.acceptSocketsTo(destination: SendCha
 
 private suspend fun <T : ASocket, S : SocketSource<T>, R> acceptorLoop(source: S, destination: SendChannel<R>, transform: S.(T) -> R) {
     while (true) {
-        val e = source.accept()
+        val e = try { source.accept() } catch (e: ClosedChannelException) { break }
 
         try {
             destination.send(transform(source, e))

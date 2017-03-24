@@ -2,6 +2,7 @@ package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
+import kotlinx.coroutines.experimental.selects.*
 import kotlinx.sockets.*
 import org.junit.*
 import java.nio.*
@@ -121,6 +122,95 @@ class SocketChannelTest {
             } finally {
                 server.join()
             }
+        }
+    }
+
+    @Test
+    fun testTextReceive() {
+        val clientJob = launch(CommonPool) {
+            selector.socket().use { socket ->
+                socket.connect(serverSocket.localAddress)
+
+                val input = socket.openTextReceiveChannel(Charsets.ISO_8859_1, pool)
+                val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
+
+                try {
+                    output.send("abc")
+                    val text = input.receive()
+                    assertEquals("ABC", text)
+                } finally {
+                    output.close()
+                }
+            }
+        }
+
+        val server = launch(CommonPool) {
+            serverAccept.receive().use { client ->
+                val input = client.openTextReceiveChannel(Charsets.ISO_8859_1, pool)
+                val output = client.openTextSendChannel(Charsets.ISO_8859_1, pool)
+
+                try {
+                    val text = input.receive()
+                    output.send(text.toUpperCase())
+                } finally {
+                    output.close()
+                }
+
+                clientJob.join()
+            }
+        }
+
+        runBlocking {
+            clientJob.join()
+            server.join()
+        }
+    }
+
+    @Test
+    fun testLinesReceive() {
+        val clientJob = launch(CommonPool) {
+            selector.socket().use { socket ->
+                socket.connect(serverSocket.localAddress)
+
+                val input = socket.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
+                val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
+
+                try {
+                    output.send("abc")
+                    output.send("\ndef\n123")
+
+                    assertEquals("ABC", input.receive())
+                    assertEquals("DEF", input.receive())
+                    assertEquals("123", input.receive())
+                } finally {
+                    output.close()
+                }
+            }
+        }
+
+        val server = launch(CommonPool) {
+            serverAccept.receive().use { client ->
+                val input = client.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
+                val output = client.openTextSendChannel(Charsets.ISO_8859_1, pool)
+
+                try {
+                    while (true) {
+                        val line = select<String?> {
+                            input.onReceiveOrNull { null }
+                            clientJob.onJoin { null }
+                        } ?: break
+
+                        output.send(line.toUpperCase())
+                    }
+                } finally {
+                    output.close()
+                }
+            }
+        }
+
+        runBlocking {
+            clientJob.join()
+            server.join()
         }
     }
 }
