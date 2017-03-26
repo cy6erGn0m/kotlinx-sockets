@@ -11,14 +11,18 @@ fun main(args: Array<String>) {
 
     runBlocking(CommonPool) {
         SelectorManager().use { selector ->
-            selector.socket().use { socket ->
-                socket.connect(InetSocketAddress("google.com", 80))
+            val (hosts, sockets) = selector.openConnector({ it: String -> InetSocketAddress(it, 80) }, { a, s -> Pair(a, s) })
+            hosts.send("google.com")
+            hosts.close()
+
+            while (true) {
+                val (host, socket) = sockets.receiveOrNull() ?: break
 
                 val out = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
                 val input = socket.openReceiveChannel(pool)
 
                 out.send("GET / HTTP/1.1\r\n")
-                out.send("Host: www.google.com\r\n")
+                out.send("Host: $host\r\n")
                 out.send("Connection: close\r\n")
                 out.send("\r\n")
 
@@ -28,7 +32,7 @@ fun main(args: Array<String>) {
                     pool.send(bb)
                 }
 
-                println("All consumed")
+                println("All consumed for $host")
             }
         }
     }
