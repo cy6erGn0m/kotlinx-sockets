@@ -42,6 +42,7 @@ class ServerSocketTest {
 
             assertEquals(3, client.read(bb))
             assertEquals("123", String(bb.array()))
+            bb.clear()
 
             assertEquals(-1, client.read(bb))
         }
