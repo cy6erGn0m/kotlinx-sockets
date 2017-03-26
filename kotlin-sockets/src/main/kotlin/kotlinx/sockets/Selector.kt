@@ -21,6 +21,10 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
             selectorLoop(selector.value)
         } catch (expected: ClosedSelectorException) {
         }
+    }.apply {
+        invokeOnCompletion {
+            selector.value.close()
+        }
     }
 
     /**
@@ -53,7 +57,20 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
      */
     override fun close() {
         closed = true
-        if (selector.isInitialized()) selector.value.close()
+        if (selector.isInitialized()) {
+            // due to bug in JDK we should never close selector outside of the selector loop
+            // this is why we have to set flag, signal selector to wakeup and wait until
+            // the selector loop completion
+            selector.value.apply {
+                wakeup()
+                if (!selectorJob.isCompleted) {
+                    runBlocking {
+                        selectorJob.join()
+                    }
+                }
+                close()
+            }
+        }
     }
 
     internal fun registerSafe(selectable: AsyncSelectable) {
@@ -62,7 +79,7 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
     }
 
     private tailrec fun selectorLoop(selector: Selector) {
-        if (selector.select() > 0) {
+        if (!closed && selector.select() > 0) {
             val keys = selector.selectedKeys().iterator()
             while (keys.hasNext()) {
                 val key = keys.next()
@@ -72,7 +89,9 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
             }
         }
 
-        while (true) {
+        if (closed) return
+
+        while (!closed) {
             val selectable = q.poll() ?: break
             handleRegister(selectable)
         }
