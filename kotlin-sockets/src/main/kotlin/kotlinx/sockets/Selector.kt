@@ -37,8 +37,12 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
         }, this)
     }
 
-    suspend fun socket(address: SocketAddress) {
-        socket().apply { connect(address) }
+    /**
+     * Opens socket, configures it by [configure] function (optional) and connects it to [address], suspends until connection
+     * completed (possibly failed).
+     */
+    suspend fun socket(address: SocketAddress, configure: AsyncSocket.() -> Unit = {}): AsyncSocket {
+        return socket().apply { configure(); connect(address) }
     }
 
     /**
