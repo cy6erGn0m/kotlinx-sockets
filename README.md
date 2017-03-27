@@ -47,4 +47,5 @@ fun main(args: Array<String>) {
  - [http server](examples/src/main/kotlin/kotlinx/sockets/examples/HttpServer.kt)
  - [numbers client and server](examples/src/main/kotlin/kotlinx/sockets/examples/numbers)
  - [coroutine channels](examples/src/main/kotlin/kotlinx/sockets/examples/CoroutineChannels.kt)
+ - [DNS client](examples/src/main/kotlin/kotlinx/sockets/examples/dns)
 
