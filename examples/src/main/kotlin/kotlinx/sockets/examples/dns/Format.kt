@@ -229,11 +229,26 @@ private suspend fun BinaryReadChannel.readResource(decoder: CharsetDecoder, supp
             // here wee are just to eliminate warning, we actually don't support EDNS0
             return Resource.Opt(name, value1, ((value2 shr 24) and 0xffL).toByte(), ((value2 shr 16) and 0xffL).toByte())
         }
+        Type.SOA -> {
+            val mname = readName(decoder, support)
+            val rname = readName(decoder, support)
+
+            fill(5 * 4)
+            val serial = getUInt()
+            val refresh = getUInt()
+            val retry = getUInt()
+            val expire = getUInt()
+            val minimum = getUInt()
+
+            support.currentOffset += 20
+
+            return Resource.SOA(name, mname, rname, serial, refresh, retry, expire, minimum)
+        }
         else -> null // TODO more types, CNAME
     }
 
     if (result == null) {
-        System.err.println("Unable to parse record of type $typeValue (${type ?: "Unknown type"})")
+        System.err.println("Unable to parse record of type $typeValue (${type ?: "Unknown type"}), index ${support.currentOffset}")
         skipExact(length)
         support.currentOffset += length
     }
@@ -261,7 +276,9 @@ private suspend fun BinaryReadChannel.readName(decoder: CharsetDecoder, support:
                 throw IllegalArgumentException("Forward references are not supported") // TODO in theory compressed message could have forward references
             }
 
-            val referred = support.stringMap[offset] ?: throw IllegalArgumentException("Illegal offset $offset for compressed domain name, known offsets are ${support.stringMap.keys}")
+            val referred = support.stringMap[offset] ?: run {
+                throw IllegalArgumentException("Illegal offset $offset for compressed domain name, known offsets are ${support.stringMap.keys}, name start $initialOffset")
+            }
 
             updateSupport(support, initialOffset, name, referred)
             currentOffset += 2
@@ -281,10 +298,13 @@ private suspend fun BinaryReadChannel.readName(decoder: CharsetDecoder, support:
 
 private fun updateSupport(support: DomainNameCompressionSupport, initialOffset: Int, before: List<String>, after: List<String>) {
     for (idx in 0 .. before.size - 1) {
-        support.stringMap[initialOffset + before.subList(0, idx).sumBy { it.length + 1 } ] = when {
+        val index = initialOffset + before.subList(0, idx).sumBy { it.length + 1 }
+        val value = when {
             idx == 0 && after.isEmpty() -> before
             else -> before.subList(idx, before.size) + after
         }
+
+        support.stringMap[index] = value
     }
 }
 

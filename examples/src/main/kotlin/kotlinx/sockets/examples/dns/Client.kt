@@ -42,6 +42,7 @@ private fun Resource<*>.printRecord() {
         is Resource.A -> println("A ${name.joinToString(".")} $address (ttl $ttl sec)")
         is Resource.AAAA -> println("A ${name.joinToString(".")} $address (ttl $ttl sec)")
         is Resource.Ns -> println("NS ${name.joinToString(".")} ${nameServer.joinToString(".")} (ttl $ttl sec)")
+        is Resource.SOA -> println("SOA ${name.joinToString(".")} MNAME ${mname.joinToString(".")}, RNAME ${rname.joinToString(".")}, serial $serial, refresh $refresh sec, retry $retry sec, expire $expire sec, minimum $minimum sec")
         is Resource.Opt -> {}
         else -> println("$type ${name.joinToString(".")} ???")
     }

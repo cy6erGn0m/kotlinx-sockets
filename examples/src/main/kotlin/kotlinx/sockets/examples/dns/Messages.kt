@@ -80,6 +80,7 @@ sealed class Resource<out D>(val name: List<String>, val type: Type, val length:
     class A(name: List<String>, val qclass: Class, val address: Inet4Address, val ttl: Long) : Resource<Inet4Address>(name, Type.A, 4, address)
     class AAAA(name: List<String>, val qclass: Class, val address: Inet6Address, val ttl: Long) : Resource<Inet6Address>(name, Type.A, 4, address)
     class Ns(name: List<String>, val qclass: Class, val nameServer: List<String>, val ttl: Long) : Resource<List<String>>(name, Type.A, 4, nameServer)
+    class SOA(name: List<String>, val mname: List<String>, val rname: List<String>, val serial: Long, val refresh: Long, val retry: Long, val expire: Long, val minimum: Long) : Resource<Nothing?>(name, Type.SOA, 4, null)
 }
 
 class Message(val header: Header, val questions: List<Question>, val answers: List<Resource<*>>, val nameServers: List<Resource<*>>, val additional: List<Resource<*>>)
