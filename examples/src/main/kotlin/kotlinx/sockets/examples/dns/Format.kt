@@ -194,7 +194,7 @@ private suspend fun BinaryReadChannel.readResource(decoder: CharsetDecoder, supp
                 val buffer = ByteBuffer.allocate(4)
                 readFully(buffer)
                 support.currentOffset += 4
-                Resource.A(name, qClass, InetAddress.getByAddress(buffer.array()) as Inet4Address, ttl = value2)
+                Resource.A.V4(name, qClass, InetAddress.getByAddress(buffer.array()) as Inet4Address, ttl = value2)
             } else null
         }
         Type.AAAA -> {
@@ -204,7 +204,7 @@ private suspend fun BinaryReadChannel.readResource(decoder: CharsetDecoder, supp
                 val buffer = ByteBuffer.allocate(16)
                 readFully(buffer)
                 support.currentOffset += 4
-                Resource.AAAA(name, qClass, InetAddress.getByAddress(buffer.array()) as Inet6Address, ttl = value2)
+                Resource.A.V6(name, qClass, InetAddress.getByAddress(buffer.array()) as Inet6Address, ttl = value2)
             } else null
         }
         Type.NS -> {
@@ -244,7 +244,11 @@ private suspend fun BinaryReadChannel.readResource(decoder: CharsetDecoder, supp
 
             return Resource.SOA(name, mname, rname, serial, refresh, retry, expire, minimum)
         }
-        else -> null // TODO more types, CNAME
+        Type.CNAME -> {
+            val cname = readName(decoder, support)
+            return Resource.CName(name, cname, ttl = value2)
+        }
+        else -> null // TODO more types
     }
 
     if (result == null) {

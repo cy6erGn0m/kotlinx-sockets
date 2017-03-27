@@ -76,9 +76,11 @@ data class Header(val id: Short,
 data class Question(val name: List<String>, val type: Type, val qclass: Class)
 sealed class Resource<out D>(val name: List<String>, val type: Type, val length: Int, val data: D) {
     class Opt(name: List<String>, val udpPayloadSize: Int, val extendedRCode: Byte, val version: Byte) : Resource<Nothing?>(name, Type.OPT, 0, null)
-    class CName(name: List<String>, val cname: List<String>, val ttl: Int) : Resource<List<String>>(name, Type.CNAME, cname.sumBy { it.length + 1 } + 1, cname)
-    class A(name: List<String>, val qclass: Class, val address: Inet4Address, val ttl: Long) : Resource<Inet4Address>(name, Type.A, 4, address)
-    class AAAA(name: List<String>, val qclass: Class, val address: Inet6Address, val ttl: Long) : Resource<Inet6Address>(name, Type.A, 4, address)
+    class CName(name: List<String>, val cname: List<String>, val ttl: Long) : Resource<List<String>>(name, Type.CNAME, cname.sumBy { it.length + 1 } + 1, cname)
+    sealed class A<out A : InetAddress>(name: List<String>, type: Type, val qclass: Class, val address: A, val ttl: Long) : Resource<A>(name, type, 4, address) {
+        class V4(name: List<String>, qclass: Class, address: Inet4Address, ttl: Long) : A<Inet4Address>(name, Type.A, qclass, address, ttl)
+        class V6(name: List<String>, qclass: Class, address: Inet6Address, ttl: Long) : A<Inet6Address>(name, Type.AAAA, qclass, address, ttl)
+    }
     class Ns(name: List<String>, val qclass: Class, val nameServer: List<String>, val ttl: Long) : Resource<List<String>>(name, Type.A, 4, nameServer)
     class SOA(name: List<String>, val mname: List<String>, val rname: List<String>, val serial: Long, val refresh: Long, val retry: Long, val expire: Long, val minimum: Long) : Resource<Nothing?>(name, Type.SOA, 4, null)
 }
