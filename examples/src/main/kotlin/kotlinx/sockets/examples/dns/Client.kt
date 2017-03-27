@@ -44,6 +44,8 @@ private fun Resource<*>.printRecord() {
         is Resource.SOA -> println("SOA ${name.joinToString(".")} MNAME ${mname.joinToString(".")}, RNAME ${rname.joinToString(".")}, serial $serial, refresh $refresh sec, retry $retry sec, expire $expire sec, minimum $minimum sec")
         is Resource.CName -> println("CNAME ${name.joinToString(".")} ${cname.joinToString(".")} (ttl $ttl sec)")
         is Resource.Opt -> println("OPT ${name.takeIf { it.isNotEmpty() }?.joinToString(".") ?: "<root>"}")
+        is Resource.Text -> println("TEXT ${name.joinToString(".")} $texts")
+        is Resource.MX -> println("MX ${name.joinToString(".")}, preference $preference, exchange ${exchange.joinToString(".")}")
         else -> println("$type ${name.joinToString(".")} ???")
     }
 }

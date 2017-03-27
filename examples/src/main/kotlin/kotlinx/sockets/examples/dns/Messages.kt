@@ -35,6 +35,7 @@ enum class Type(val value: Int) {
     PTR(12),
     MX(15),
     TXT(16),
+    SPF(99),
     // obsolete and irrelevant values skipped here to simplify example
     ARequestForATransfer(252), // 252 A request for a transfer of an entire zone
     ARequestForMailbox(253),
@@ -83,6 +84,8 @@ sealed class Resource<out D>(val name: List<String>, val type: Type, val length:
     }
     class Ns(name: List<String>, val qclass: Class, val nameServer: List<String>, val ttl: Long) : Resource<List<String>>(name, Type.A, 4, nameServer)
     class SOA(name: List<String>, val mname: List<String>, val rname: List<String>, val serial: Long, val refresh: Long, val retry: Long, val expire: Long, val minimum: Long) : Resource<Nothing?>(name, Type.SOA, 4, null)
+    class Text(name: List<String>, val texts: List<String>, length: Int) : Resource<List<String>>(name, Type.TXT, length, texts)
+    class MX(name: List<String>, val preference: Int, val exchange: List<String>) : Resource<List<String>>(name, Type.MX, 0, exchange)
 }
 
 class Message(val header: Header, val questions: List<Question>, val answers: List<Resource<*>>, val nameServers: List<Resource<*>>, val additional: List<Resource<*>>)

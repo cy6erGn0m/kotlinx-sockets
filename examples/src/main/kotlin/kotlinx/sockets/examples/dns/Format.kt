@@ -248,6 +248,40 @@ private suspend fun BinaryReadChannel.readResource(decoder: CharsetDecoder, supp
             val cname = readName(decoder, support)
             return Resource.CName(name, cname, ttl = value2)
         }
+        Type.TXT -> {
+            var remaining = length
+            val textBuffer = pool.receive()
+            val texts = ArrayList<String>(2)
+
+            while (remaining > 0) {
+                fill(1)
+                val textSize = getUByte()
+
+                textBuffer.clear()
+                textBuffer.limit(minOf(textSize, remaining))
+
+                readFully(textBuffer)
+                textBuffer.flip()
+
+                val text = decoder.decode(textBuffer).toString()
+                texts += text
+                support.currentOffset += textSize + 1
+                remaining -= textSize + 1
+            }
+
+            pool.offer(textBuffer)
+
+            return Resource.Text(name, texts, length)
+        }
+        Type.MX -> {
+            fill(3)
+            val preference = getUShort()
+            support.currentOffset += 2
+            val exchange = readName(decoder, support)
+
+            return Resource.MX(name, preference, exchange)
+        }
+        Type.SPF -> null
         else -> null // TODO more types
     }
 
