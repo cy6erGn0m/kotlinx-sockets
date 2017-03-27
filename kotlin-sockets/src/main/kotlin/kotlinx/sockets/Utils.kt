@@ -1,12 +1,16 @@
 package kotlinx.sockets
 
+import java.io.*
 import java.nio.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
 
 suspend fun ReadChannel.readFully(dst: ByteBuffer) {
     do {
-        read(dst)
+        if (read(dst) == -1) {
+            if (dst.hasRemaining()) throw IOException("Unexpected eof")
+            break
+        }
     } while (dst.hasRemaining())
 }
 
