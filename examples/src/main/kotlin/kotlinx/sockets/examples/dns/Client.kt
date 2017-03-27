@@ -15,7 +15,7 @@ fun main(args: Array<String>) {
 //            val dnsServer = inet4address(198, 41, 0, 4) // root DNS server
 //            val dnsServer = inet4address(8, 8, 8, 8) // google DNS server
             val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
-            val results = selector.resolve(pool, dnsServer, "kotlinlang.org", Type.ALL)
+            val results = selector.resolve(pool, dnsServer, "kotlinlang.org", Type.A)
 
             if (results.answers.isNotEmpty()) {
                 println("Answers:")
