@@ -3,7 +3,7 @@ package kotlinx.sockets.examples.crawler
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.sockets.*
+import kotlinx.sockets.adapters.*
 import java.nio.*
 import java.nio.channels.*
 import java.nio.file.*

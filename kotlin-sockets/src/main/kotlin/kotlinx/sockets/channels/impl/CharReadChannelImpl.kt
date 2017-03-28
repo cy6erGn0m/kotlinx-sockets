@@ -1,5 +1,6 @@
-package kotlinx.sockets
+package kotlinx.sockets.channels.impl
 
+import kotlinx.sockets.channels.*
 import java.nio.*
 import java.nio.charset.*
 
@@ -41,10 +42,9 @@ fun ReadChannel.asCharChannel(charset: Charset = Charsets.UTF_8,
                               buffer: ByteBuffer = ByteBuffer.allocate(8192)): CharReadChannel = CharReadChannelImpl(this, charset, buffer)
 
 /**
- * Reads line from the channel to given [out] using [buffer].
+ * Reads line from the channel using [buffer].
  * It is very important that [buffer] could contain characters before and after function invocation.
- * If you create new buffer than you have to set position/limit accordingly otherwise all zeroes from the [buffer]
- * will be appended to [out].
+ * If you create new buffer then you have to set position/limit accordingly otherwise you get all zeroes from the [buffer].
  * If there are characters in the [buffer] before invocation than they will be used before read from the channel.
  * Characters remaining in the [buffer] after invocations should be never ignored/discarded. You can use the same buffer
  * to call [readLineTo] multiple times, in this case you can simply pass as argument with no position change.

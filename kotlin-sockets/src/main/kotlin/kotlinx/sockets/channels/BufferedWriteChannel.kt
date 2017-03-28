@@ -1,11 +1,14 @@
 package kotlinx.sockets.channels
 
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
+import java.nio.charset.*
 
-abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.coroutines.experimental.channels.Channel<ByteBuffer>, order: java.nio.ByteOrder) : kotlinx.sockets.WriteChannel {
+abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteBuffer>, order: ByteOrder) : WriteChannel {
 
-    private var buffer: java.nio.ByteBuffer = kotlinx.sockets.channels.BufferedWriteChannel.Companion.Empty
-    var order: java.nio.ByteOrder = order
+    private var buffer: ByteBuffer = Empty
+    var order: ByteOrder = order
         set(newValue) {
             field = newValue
             buffer.order(newValue)
@@ -39,12 +42,12 @@ abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.corou
         buffer.putInt(value.toInt())
     }
 
-    suspend fun putString(s: String, charset: java.nio.charset.Charset) {
+    suspend fun putString(s: String, charset: Charset) {
         putString(s, charset.newEncoder())
     }
 
-    suspend fun putString(s: String, encoder: java.nio.charset.CharsetEncoder) {
-        val from = java.nio.CharBuffer.wrap(s)
+    suspend fun putString(s: String, encoder: CharsetEncoder) {
+        val from = CharBuffer.wrap(s)
         encoder.reset()
 
         while (from.hasRemaining()) {
@@ -58,7 +61,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.corou
         }
     }
 
-    suspend override fun write(src: java.nio.ByteBuffer) {
+    suspend override fun write(src: ByteBuffer) {
         while (src.hasRemaining()) {
             while (src.hasRemaining() && buffer.hasRemaining()) {
                 buffer.put(src)
@@ -71,7 +74,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.corou
     }
 
     override fun close() {
-        kotlinx.coroutines.experimental.runBlocking {
+        runBlocking {
             flush()
             if (pool !== Empty) {
                 pool.offer(buffer)
@@ -96,14 +99,14 @@ abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.corou
         if (buffer.hasRemaining()) {
             doWrite(buffer)
             newBuffer()
-        } else if (buffer === kotlinx.sockets.channels.BufferedWriteChannel.Companion.Empty) {
+        } else if (buffer === Empty) {
             newBuffer()
         } else {
             buffer.clear()
         }
     }
 
-    protected abstract suspend fun doWrite(buffer: java.nio.ByteBuffer)
+    protected abstract suspend fun doWrite(buffer: ByteBuffer)
     protected abstract fun closeImpl()
 
     private suspend fun newBuffer() {
@@ -114,6 +117,6 @@ abstract class BufferedWriteChannel internal constructor(val pool: kotlinx.corou
     }
 
     companion object {
-        private val Empty = java.nio.ByteBuffer.allocate(0)!!
+        private val Empty = ByteBuffer.allocate(0)!!
     }
 }

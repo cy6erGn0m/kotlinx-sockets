@@ -1,16 +1,15 @@
-package kotlinx.sockets
+package kotlinx.sockets.selector
 
 import kotlinx.coroutines.experimental.*
-import java.io.*
+import kotlinx.sockets.*
 import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.*
-import kotlin.coroutines.experimental.*
 
 /**
  * Represents a coroutine facade for NIO selector and socket factory. Need to be closed to release resources.
  */
-class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, Closeable {
+class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, java.io.Closeable {
     @Volatile
     private var closed = false
     private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open()!! }

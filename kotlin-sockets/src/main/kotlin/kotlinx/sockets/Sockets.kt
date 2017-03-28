@@ -1,6 +1,7 @@
 package kotlinx.sockets
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.sockets.channels.*
 import java.io.*
 import java.net.*
 

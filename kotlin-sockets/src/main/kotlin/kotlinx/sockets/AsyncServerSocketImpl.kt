@@ -1,5 +1,6 @@
 package kotlinx.sockets
 
+import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*

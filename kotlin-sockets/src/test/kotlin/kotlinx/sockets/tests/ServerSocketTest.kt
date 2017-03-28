@@ -2,6 +2,7 @@ package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.selector.*
 import org.junit.*
 import java.net.*
 import java.nio.*

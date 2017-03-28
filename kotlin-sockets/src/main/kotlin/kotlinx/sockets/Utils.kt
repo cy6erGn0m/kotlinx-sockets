@@ -1,5 +1,6 @@
 package kotlinx.sockets
 
+import kotlinx.sockets.channels.*
 import java.io.*
 import java.nio.*
 import java.nio.channels.*

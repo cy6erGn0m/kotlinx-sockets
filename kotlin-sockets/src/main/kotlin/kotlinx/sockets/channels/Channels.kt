@@ -1,5 +1,6 @@
-package kotlinx.sockets
+package kotlinx.sockets.channels
 
+import kotlinx.sockets.*
 import java.io.*
 import java.nio.*
 
@@ -53,7 +54,7 @@ interface CharReadChannel : ASocket {
 }
 
 /**
- * Represents a character channel to whoch one can write characters
+ * Represents a character channel to which one can write characters
  */
 interface CharWriteChannel : ASocket {
     /**
@@ -80,7 +81,7 @@ interface BufferedCharReadChannel : CharReadChannel {
 
     /**
      * Reads line from the channel. Uses [StringBuilder] as line buffer and the internal buffer. Reads and suspends
-     * when needed until end of line reached. Internally uses [readLineTo] implementation.
+     * when needed until end of line reached. Internally uses [CharReadChannel.readLineTo] implementation.
      */
     suspend fun readLine(): String?
 }

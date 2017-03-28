@@ -4,6 +4,8 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.selects.*
 import kotlinx.sockets.*
+import kotlinx.sockets.adapters.*
+import kotlinx.sockets.selector.*
 import org.junit.*
 import java.nio.*
 import kotlin.test.*

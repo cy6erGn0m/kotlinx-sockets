@@ -1,7 +1,6 @@
 package kotlinx.sockets.channels
 
 import kotlinx.coroutines.experimental.channels.*
-import kotlinx.sockets.*
 import java.nio.*
 import java.nio.charset.*
 
@@ -70,7 +69,7 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
                 else -> {
                     val sub = buffer.slice()
                     sub.limit(remaining)
-                    val dr = decoder.decode(sub, cb, true)
+                    decoder.decode(sub, cb, true)
                     buffer.position(buffer.position() + sub.position())
                     remaining -= sub.position()
                 }

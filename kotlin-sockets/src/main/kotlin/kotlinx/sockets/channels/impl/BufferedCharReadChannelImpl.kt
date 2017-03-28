@@ -1,5 +1,6 @@
-package kotlinx.sockets
+package kotlinx.sockets.channels.impl
 
+import kotlinx.sockets.channels.*
 import java.nio.*
 
 internal class BufferedCharReadChannelImpl(val source: CharReadChannel, private var buffer: CharBuffer) : BufferedCharReadChannel {

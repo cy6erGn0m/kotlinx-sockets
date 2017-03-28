@@ -1,12 +1,14 @@
 package kotlinx.sockets.adapters
 
+import kotlinx.coroutines.experimental.channels.*
+import kotlinx.sockets.channels.*
 import java.nio.*
 
-internal class ChainBufferedReadChannel(val source: kotlinx.sockets.ReadChannel, pool: kotlinx.coroutines.experimental.channels.Channel<ByteBuffer>, order: java.nio.ByteOrder) : kotlinx.sockets.channels.BufferedReadChannel(pool, order) {
+internal class ChainBufferedReadChannel(val source: ReadChannel, pool: Channel<ByteBuffer>, order: ByteOrder) : BufferedReadChannel(pool, order) {
 
     private var closed = false
 
-    suspend override fun receiveImpl(): java.nio.ByteBuffer? {
+    suspend override fun receiveImpl(): ByteBuffer? {
         val next = pool.receive().apply {
             clear()
             order(order)
@@ -27,6 +29,6 @@ internal class ChainBufferedReadChannel(val source: kotlinx.sockets.ReadChannel,
         get() = closed
 }
 
-fun kotlinx.sockets.ReadChannel.buffered(pool: kotlinx.coroutines.experimental.channels.Channel<ByteBuffer>, order: java.nio.ByteOrder): kotlinx.sockets.channels.BufferedReadChannel = kotlinx.sockets.adapters.ChainBufferedReadChannel(this, pool, order)
+fun ReadChannel.buffered(pool: Channel<ByteBuffer>, order: ByteOrder): BufferedReadChannel = ChainBufferedReadChannel(this, pool, order)
 
 

@@ -1,7 +1,9 @@
 package kotlinx.sockets.examples.numbers
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.sockets.*
+import kotlinx.sockets.channels.*
+import kotlinx.sockets.channels.impl.*
+import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
 import java.util.*
