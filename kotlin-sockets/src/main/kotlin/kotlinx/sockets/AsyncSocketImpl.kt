@@ -125,7 +125,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             } catch (expected: CancelledKeyException) {
             } finally {
                 interestedOps = 0
-                pushClose(selector)
+                selector.ensureUnregistered()
             }
         }
     }

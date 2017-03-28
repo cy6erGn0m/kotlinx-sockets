@@ -41,12 +41,8 @@ internal fun SelectableBase.interestOp(flag: Int, state: Boolean) {
 
 internal fun AsyncSelectable.pushInterest(selector: SelectorManager) {
     if (interestedOps != 0) {
-        selector.registerSafe(this@pushInterest)
+        selector.registerSafe(this)
     }
-}
-
-internal fun AsyncSelectable.pushClose(selector: SelectorManager) {
-    selector.registerSafe(this)
 }
 
 internal fun AsyncSelectable.pushInterestDirect(key: SelectionKey) {

@@ -81,6 +81,10 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
         selector.value.wakeup()
     }
 
+    internal fun ensureUnregistered() {
+        selector.value.wakeup()
+    }
+
     private tailrec fun selectorLoop(selector: Selector) {
         if (!closed && selector.select() > 0) {
             val keys = selector.selectedKeys().iterator()

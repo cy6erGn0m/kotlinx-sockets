@@ -73,7 +73,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
                 onSelectionFailed(ClosedChannelException())
             } catch (expected: CancelledKeyException) {
             } finally {
-                pushClose(selector)
+                selector.ensureUnregistered()
             }
         }
     }
