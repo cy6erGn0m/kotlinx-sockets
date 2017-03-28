@@ -114,9 +114,7 @@ class ClientSocketTest {
     private fun client(block: suspend (AsyncSocket) -> Unit) {
         runBlocking {
             selector.socket().use {
-                it.connect(server!!.first.localSocketAddress)
-
-                block(it)
+                block(it.connect(server!!.first.localSocketAddress))
             }
         }
     }

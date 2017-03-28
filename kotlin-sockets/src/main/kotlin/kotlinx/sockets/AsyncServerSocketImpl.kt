@@ -7,7 +7,7 @@ import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 
-internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : AsyncServerSocket, SelectableBase() {
+internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : AsyncServerSocket, AsyncUnboundServerSocket, SelectableBase() {
     init {
         require(!channel.isBlocking)
     }
@@ -21,8 +21,16 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
         channel.setOption(option, value)
     }
 
-    override fun bind(localAddress: SocketAddress?) {
+    override fun <T> getOption(option: SocketOption<T>): T {
+        return channel.getOption(option)
+    }
+
+    override val supportedOptions: Set<SocketOption<*>>
+        get() = channel.supportedOptions()
+
+    override fun bind(localAddress: SocketAddress?): AsyncServerSocket {
         channel.bind(localAddress)
+        return this
     }
 
     override fun onSelected(key: SelectionKey) {

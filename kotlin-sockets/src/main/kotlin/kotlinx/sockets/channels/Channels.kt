@@ -1,7 +1,5 @@
 package kotlinx.sockets.channels
 
-import kotlinx.sockets.*
-import java.io.*
 import java.net.*
 import java.nio.*
 
@@ -40,6 +38,8 @@ interface WriteChannel : Output {
     suspend fun write(src: ByteBuffer)
 }
 
+interface ReadWriteChannel : ReadChannel, WriteChannel
+
 interface DatagramWriteChannel : Output {
     suspend fun write(src: ByteBuffer, target: SocketAddress)
 }
@@ -48,16 +48,7 @@ interface DatagramReadChannel {
     suspend fun receive(dst: ByteBuffer): SocketAddress
 }
 
-/**
- * Represents a socket source, for example server socket
- */
-interface SocketSource<out S : Closeable> : ASocket {
-    /**
-     * accepts socket connection or suspends if none yet available.
-     * @return accepted socket
-     */
-    suspend fun accept(): S
-}
+interface DatagramReadWriteChannel : DatagramReadChannel, DatagramWriteChannel
 
 /**
  * Represents a character channel from one can read

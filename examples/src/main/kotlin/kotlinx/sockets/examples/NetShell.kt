@@ -10,8 +10,8 @@ import kotlin.system.*
 fun main(args: Array<String>) {
     SelectorManager().use { manager ->
         runBlocking {
-            manager.socket().use { socket ->
-                socket.connect(InetSocketAddress(9098))
+            manager.socket().use { before ->
+                val socket = before.connect(InetSocketAddress(9098))
                 println("Connected")
 
                 val bb = ByteBuffer.allocate(8192)

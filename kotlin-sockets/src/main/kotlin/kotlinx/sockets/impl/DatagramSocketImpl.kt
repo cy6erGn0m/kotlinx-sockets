@@ -98,17 +98,24 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
         channel.setOption(option, value)
     }
 
+    override fun <T> getOption(option: SocketOption<T>): T {
+        return channel.getOption(option)
+    }
+
+    override val supportedOptions: Set<SocketOption<*>>
+        get() = channel.supportedOptions()
+
     override fun close() {
         channel.close()
     }
 
-    override fun connect(target: SocketAddress): AsyncConnectedDatagramSocket {
+    suspend override fun connect(target: SocketAddress): AsyncConnectedDatagramSocket {
         channel.connect(target)
         return this
     }
 
-    override fun bind(local: SocketAddress?): AsyncBoundDatagramSocket {
-        channel.bind(local)
+    override fun bind(localAddress: SocketAddress?): AsyncBoundDatagramSocket {
+        channel.bind(localAddress)
         return this
     }
 

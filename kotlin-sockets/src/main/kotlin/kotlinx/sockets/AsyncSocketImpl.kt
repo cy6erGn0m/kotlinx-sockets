@@ -8,7 +8,7 @@ import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 
-internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), AsyncSocket {
+internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), AsyncSocket, AsyncInitialSocket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
@@ -26,6 +26,13 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     override fun <T> setOption(option: SocketOption<T>, value: T) {
         channel.setOption(option, value)
     }
+
+    override fun <T> getOption(option: SocketOption<T>): T {
+        return channel.getOption(option)
+    }
+
+    override val supportedOptions: Set<SocketOption<*>>
+        get() = channel.supportedOptions()
 
     override fun onSelected(key: SelectionKey) {
         val changed = onSelectedGeneric(key, SelectionKey.OP_CONNECT, connectContinuation) { it.resume(false) } or
@@ -45,8 +52,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         interestedOps = 0
     }
 
-    override suspend fun connect(address: SocketAddress) {
-        var connected = channel.connect(address) || suspendCancellableCoroutine<Boolean> { c ->
+    override suspend fun connect(target: SocketAddress): AsyncSocket {
+        var connected = channel.connect(target) || suspendCancellableCoroutine<Boolean> { c ->
             connectContinuation.setHandler("connect", c)
             connectContinuation.setNullOnCancel(c)
             c.disposeOnCancel(this)
@@ -67,6 +74,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         }
 
         wantConnect(false)
+
+        return this
     }
 
     override suspend fun read(dst: ByteBuffer): Int {

@@ -16,9 +16,10 @@ fun main(args: Array<String>) {
 fun numbersClient(port: Int, log: Boolean): Long {
     return runBlocking(CommonPool) {
         SelectorManager().use { selector ->
-            selector.socket().use { socket ->
-                socket.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
-                socket.connect(InetSocketAddress(port))
+            selector.socket().use { before ->
+                before.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
+                val socket = before.connect(InetSocketAddress(port))
+
                 if (log) {
                     println("Connected")
                 }

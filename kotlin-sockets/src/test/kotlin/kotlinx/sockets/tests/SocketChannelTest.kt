@@ -21,9 +21,7 @@ class SocketChannelTest {
     fun setUp() {
         pool = runDefaultByteBufferPool()
 
-        serverSocket = selector.serverSocket()
-        serverSocket.bind(null)
-
+        serverSocket = selector.serverSocket().bind(null)
         serverAccept = serverSocket.openAcceptChannel()
     }
 
@@ -64,8 +62,8 @@ class SocketChannelTest {
 
         runBlocking {
             try {
-                selector.socket().use { socket ->
-                    socket.connect(serverSocket.localAddress)
+                selector.socket().use { before ->
+                    val socket = before.connect(serverSocket.localAddress)
 
                     val receive = socket.openReceiveChannel(pool)
                     val send = socket.openSendChannel(pool)
@@ -105,8 +103,8 @@ class SocketChannelTest {
 
         runBlocking {
             try {
-                selector.socket().use { socket ->
-                    socket.connect(serverSocket.localAddress)
+                selector.socket().use { before ->
+                    val socket = before.connect(serverSocket.localAddress)
 
                     val receive = socket.openReceiveChannel(pool)
                     val send = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
@@ -130,8 +128,8 @@ class SocketChannelTest {
     @Test
     fun testTextReceive() {
         val clientJob = launch(CommonPool) {
-            selector.socket().use { socket ->
-                socket.connect(serverSocket.localAddress)
+            selector.socket().use { before ->
+                val socket = before.connect(serverSocket.localAddress)
 
                 val input = socket.openTextReceiveChannel(Charsets.ISO_8859_1, pool)
                 val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
@@ -171,8 +169,8 @@ class SocketChannelTest {
     @Test
     fun testLinesReceive() {
         val clientJob = launch(CommonPool) {
-            selector.socket().use { socket ->
-                socket.connect(serverSocket.localAddress)
+            selector.socket().use { before ->
+                val socket = before.connect(serverSocket.localAddress)
 
                 val input = socket.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
                 val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)

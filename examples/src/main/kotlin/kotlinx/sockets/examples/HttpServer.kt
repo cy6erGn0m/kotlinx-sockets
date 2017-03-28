@@ -19,8 +19,8 @@ fun main(args: Array<String>) {
 
     runBlocking {
         SelectorManager().use { s ->
-            s.serverSocket().use { server ->
-                server.bind(InetSocketAddress(9094))
+            s.serverSocket().use { socket ->
+                val server = socket.bind(InetSocketAddress(9094))
 
                 while (true) {
                     try {

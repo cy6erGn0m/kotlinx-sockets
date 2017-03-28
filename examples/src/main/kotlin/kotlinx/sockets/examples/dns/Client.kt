@@ -42,7 +42,7 @@ fun main(args: Array<String>) {
 
 private fun Resource<*>.printRecord() {
     when (this) {
-        is Resource.A -> println("A ${name.joinToString(".")} $address (ttl $ttl sec)")
+        is Resource.A -> println("${type.name} ${name.joinToString(".")} $address (ttl $ttl sec)")
         is Resource.Ns -> println("NS ${name.joinToString(".")} ${nameServer.joinToString(".")} (ttl $ttl sec)")
         is Resource.SOA -> println("SOA ${name.joinToString(".")} MNAME ${mname.joinToString(".")}, RNAME ${rname.joinToString(".")}, serial $serial, refresh $refresh sec, retry $retry sec, expire $expire sec, minimum $minimum sec")
         is Resource.CName -> println("CNAME ${name.joinToString(".")} ${cname.joinToString(".")} (ttl $ttl sec)")
@@ -53,20 +53,18 @@ private fun Resource<*>.printRecord() {
     }
 }
 
-private fun inet4address(a: Int, b: Int, c: Int, d: Int): Inet4Address {
-    return InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte())) as Inet4Address
+private fun inet4address(a: Int, b: Int, c: Int, d: Int): InetAddress {
+    return InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte()))
 }
 
-private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: Inet4Address, host: String, type: Type, tcp: Boolean): Message {
-    val client: AsyncConnectionReadAndWrite = if (tcp) {
-        socket().apply {
+private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
+    val client: AReadWriteSocket = if (tcp) {
+        socket().run {
             setOption(StandardSocketOptions.TCP_NODELAY, true)
             connect(InetSocketAddress(server, 53))
         }
     } else {
-        datagramSocket().run {
-            connect(InetSocketAddress(server, 53))
-        }
+        datagramSocket().connect(InetSocketAddress(server, 53))
     }
 
     return client.use {

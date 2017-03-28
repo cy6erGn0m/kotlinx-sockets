@@ -68,10 +68,9 @@ class ServerSocketTest {
 
     private fun server(block: suspend (AsyncSocket) -> Unit) {
         launch(CommonPool) {
-            val server = selector.serverSocket()
+            val server = selector.serverSocket().bind(null)
             this@ServerSocketTest.server = server
 
-            server.bind(null)
             bound.countDown()
 
             loop@while (failure == null) {

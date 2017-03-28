@@ -30,7 +30,7 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
     /**
      * Creates TCP socket that not yet connected
      */
-    fun socket(): AsyncSocket {
+    fun socket(): AsyncInitialSocket {
         ensureStarted()
         return AsyncSocketImpl(selector.value.provider().openSocketChannel().apply {
             configureBlocking(false)
@@ -41,14 +41,14 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
      * Opens socket, configures it by [configure] function (optional) and connects it to [address], suspends until connection
      * completed (possibly failed).
      */
-    suspend fun socket(address: SocketAddress, configure: AsyncSocket.() -> Unit = {}): AsyncSocket {
-        return socket().apply { configure(); connect(address) }
+    suspend fun socket(address: SocketAddress, configure: AsyncInitialSocket.() -> Unit = {}): AsyncSocket {
+        return socket().run { configure(this); connect(address) }
     }
 
     /**
      * Creates TCP server socket that not yet bound.
      */
-    fun serverSocket(): AsyncServerSocket {
+    fun serverSocket(): AsyncUnboundServerSocket {
         ensureStarted()
         return AsyncServerSocketImpl(selector.value.provider().openServerSocketChannel().apply {
             configureBlocking(false)
