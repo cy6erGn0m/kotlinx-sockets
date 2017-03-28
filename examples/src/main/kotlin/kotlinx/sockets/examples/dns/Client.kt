@@ -18,7 +18,7 @@ fun main(args: Array<String>) {
 //            val dnsServer = inet4address(198, 41, 0, 4) // root DNS server
 //            val dnsServer = inet4address(8, 8, 8, 8) // google DNS server
             val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
-            val results = selector.resolve(pool, dnsServer, "kotlinlang.org", Type.A)
+            val results = selector.resolve(pool, dnsServer, "kotlinlang.org", Type.A, tcp = true)
 
             if (results.answers.isNotEmpty()) {
                 println("Answers:")
@@ -57,20 +57,27 @@ private fun inet4address(a: Int, b: Int, c: Int, d: Int): Inet4Address {
     return InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte())) as Inet4Address
 }
 
-private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: Inet4Address, host: String, type: Type): Message {
-    val client = socket()
-    client.setOption(StandardSocketOptions.TCP_NODELAY, true)
-    client.connect(InetSocketAddress(server, 53))
+private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: Inet4Address, host: String, type: Type, tcp: Boolean): Message {
+    val client: AsyncConnectionReadAndWrite = if (tcp) {
+        socket().apply {
+            setOption(StandardSocketOptions.TCP_NODELAY, true)
+            connect(InetSocketAddress(server, 53))
+        }
+    } else {
+        datagramSocket().run {
+            connect(InetSocketAddress(server, 53))
+        }
+    }
 
     return client.use {
-        val output = client.openSendChannel(pool).buffered(pool, ByteOrder.BIG_ENDIAN)
-        val input = client.openReceiveChannel(pool).buffered(pool, ByteOrder.BIG_ENDIAN)
+        val output = client.openSendChannel(pool).bufferedWrite(pool, ByteOrder.BIG_ENDIAN)
+        val input = client.openReceiveChannel(pool).bufferedRead(pool, ByteOrder.BIG_ENDIAN)
 
-        doResolve(output, input, host, type)
+        doResolve(output, input, host, type, tcp)
     }
 }
 
-private suspend fun doResolve(out: BufferedWriteChannel, input: BufferedReadChannel, host: String, type: Type): Message {
+private suspend fun doResolve(out: BufferedWriteChannel, input: BufferedReadChannel, host: String, type: Type, tcp: Boolean): Message {
     val rnd = Random()
     val id = (rnd.nextInt() and 0xffff).toShort()
 
@@ -87,10 +94,10 @@ private suspend fun doResolve(out: BufferedWriteChannel, input: BufferedReadChan
 
     val encoder = Charsets.ISO_8859_1.newEncoder()
 
-    out.write(message, encoder, true)
+    out.write(message, encoder, tcp)
     out.flush()
 
-    val result = input.readMessage(true)
+    val result = input.readMessage(tcp)
 
     if (result.header.id != id) {
         System.err.println("Bad response id")

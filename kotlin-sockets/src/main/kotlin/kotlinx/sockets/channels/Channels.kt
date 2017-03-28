@@ -2,6 +2,7 @@ package kotlinx.sockets.channels
 
 import kotlinx.sockets.*
 import java.io.*
+import java.net.*
 import java.nio.*
 
 /**
@@ -22,7 +23,8 @@ interface ReadChannel {
 interface Output {
     /**
      * Shut down output. It generally doesn't close related socket but just shut downs output channel
-     * so the remote peer will receive end of stream.
+     * so the remote peer may receive end of stream.
+     * Please note that this has no effect for datagram outputs.
      */
     fun shutdownOutput()
 }
@@ -36,6 +38,14 @@ interface WriteChannel : Output {
      * and updates buffer's position accordingly. Suspends if no bytes could be written immediately.
      */
     suspend fun write(src: ByteBuffer)
+}
+
+interface DatagramWriteChannel : Output {
+    suspend fun write(src: ByteBuffer, target: SocketAddress)
+}
+
+interface DatagramReadChannel {
+    suspend fun receive(dst: ByteBuffer): SocketAddress
 }
 
 /**

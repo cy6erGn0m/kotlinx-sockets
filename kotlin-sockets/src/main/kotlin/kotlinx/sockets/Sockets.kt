@@ -48,10 +48,12 @@ interface ConfigurableSocket : ASocket {
     fun <T> setOption(option: SocketOption<T>, value: T)
 }
 
+interface AsyncConnectionReadAndWrite : ReadChannel, WriteChannel, AsyncLocalPeer, AsyncConnection
+
 /**
  * Represents a TCP socket. Provides ability to [connect], [read] and [write].
  */
-interface AsyncSocket : AsyncLocalPeer, AsyncConnection, ReadChannel, WriteChannel, ConfigurableSocket {
+interface AsyncSocket : AsyncLocalPeer, AsyncConnection, ReadChannel, WriteChannel, AsyncConnectionReadAndWrite, ConfigurableSocket {
     /**
      * Connect socket to the specified [address], suspends until connection succeeds.
      */
@@ -68,4 +70,16 @@ interface AsyncServerSocket : AsyncLocalPeer, ConfigurableSocket, SocketSource<A
      * Could fail if [localAddress] is already in use or if there are no free local ports available.
      */
     fun bind(localAddress: SocketAddress?)
+}
+
+interface AsyncFreeDatagramSocket  : DatagramReadChannel, DatagramWriteChannel, ConfigurableSocket {
+    fun bind(local: SocketAddress?): AsyncBoundDatagramSocket
+    fun connect(target: SocketAddress): AsyncConnectedDatagramSocket
+}
+
+interface AsyncBoundDatagramSocket : ReadChannel, DatagramWriteChannel, ASocket, ConfigurableSocket, AsyncLocalPeer {
+    fun connect(target: SocketAddress): AsyncConnectedDatagramSocket
+}
+
+interface AsyncConnectedDatagramSocket : ReadChannel, WriteChannel, AsyncConnectionReadAndWrite, ConfigurableSocket, AsyncLocalPeer, AsyncConnection {
 }

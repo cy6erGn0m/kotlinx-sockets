@@ -8,7 +8,7 @@ import kotlin.coroutines.experimental.*
 /**
  * A selectable entity with selectable NIO [channel], [interestedOps] subscriptions
  */
-interface AsyncSelectable {
+internal interface AsyncSelectable {
     /**
      * associated channel
      */
@@ -31,7 +31,8 @@ interface AsyncSelectable {
 }
 
 internal abstract class SelectableBase : AsyncSelectable {
-    override abstract var interestedOps: Int
+    @Volatile
+    override var interestedOps: Int = 0
         internal set
 }
 

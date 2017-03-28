@@ -14,9 +14,6 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
 
     private val acceptContinuation = AtomicReference<Continuation<Nothing?>?>()
 
-    @Volatile
-    override var interestedOps: Int = 0
-
     override val localAddress: SocketAddress
         get() = channel.localAddress
 

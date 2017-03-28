@@ -2,6 +2,7 @@ package kotlinx.sockets.selector
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.impl.DatagramSocketImpl
 import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.*
@@ -50,6 +51,13 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
     fun serverSocket(): AsyncServerSocket {
         ensureStarted()
         return AsyncServerSocketImpl(selector.value.provider().openServerSocketChannel().apply {
+            configureBlocking(false)
+        }, this)
+    }
+
+    fun datagramSocket(): AsyncFreeDatagramSocket {
+        ensureStarted()
+        return DatagramSocketImpl(selector.value.provider().openDatagramChannel().apply {
             configureBlocking(false)
         }, this)
     }

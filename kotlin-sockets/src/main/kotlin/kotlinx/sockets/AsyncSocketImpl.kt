@@ -13,9 +13,6 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
 
-    @Volatile
-    override var interestedOps: Int = 0
-
     private val connectContinuation = AtomicReference<Continuation<Boolean>?>()
     private val readContinuation = AtomicReference<Continuation<Unit>?>()
     private val writeContinuation = AtomicReference<Continuation<Unit>?>()
