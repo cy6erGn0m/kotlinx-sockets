@@ -1,18 +1,18 @@
 package kotlinx.sockets
 
+import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
 
 internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : AsyncServerSocket, SelectableBase() {
     init {
         require(!channel.isBlocking)
     }
 
-    private val acceptContinuation = AtomicReference<Continuation<AsyncSocket?>?>()
+    private val acceptContinuation = AtomicReference<Continuation<Nothing?>?>()
 
     @Volatile
     override var interestedOps: Int = 0
@@ -42,22 +42,22 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
 
     suspend override fun accept(): AsyncSocket {
         while (true) {
-            return suspendCoroutineOrReturn<AsyncSocket?> { c ->
-                val nioChannel = channel.accept()
+            channel.accept()?.let { return accepted(it) }
 
-                if (nioChannel != null) {
-                    wantAccept(false)
-                    nioChannel.configureBlocking(false)
-                    AsyncSocketImpl(nioChannel, selector)
-                } else {
-                    acceptContinuation.setHandler("accept", c)
-                    wantAccept(true)
-                    pushInterest(selector)
+            suspendCancellableCoroutine<Nothing?> { c ->
+                acceptContinuation.setHandler("accept", c)
+                acceptContinuation.setNullOnCancel(c)
+                c.disposeOnCancel(this)
 
-                    COROUTINE_SUSPENDED
-                }
-            } ?: continue
+                wantAccept(true)
+                pushInterest(selector)
+            }
         }
+    }
+
+    private fun accepted(nioChannel: SocketChannel): AsyncSocket {
+        nioChannel.configureBlocking(false)
+        return AsyncSocketImpl(nioChannel, selector)
     }
 
     private fun wantAccept(flag: Boolean) {

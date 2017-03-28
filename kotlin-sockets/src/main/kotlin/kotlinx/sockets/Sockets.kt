@@ -10,7 +10,10 @@ import java.net.*
  */
 interface ASocket : Closeable, DisposableHandle {
     override fun dispose() {
-        close()
+        try {
+            close()
+        } catch (ignore: Throwable) {
+        }
     }
 }
 
