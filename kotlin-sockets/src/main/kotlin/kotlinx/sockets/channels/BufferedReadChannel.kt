@@ -1,21 +1,21 @@
-package kotlinx.sockets.examples.dns
+package kotlinx.sockets.channels
 
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.sockets.*
 import java.nio.*
 import java.nio.charset.*
 
-class BinaryReadChannel(val source: ReceiveChannel<ByteBuffer>, val pool: Channel<ByteBuffer>, val order: ByteOrder) : ReadChannel {
+abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBuffer>, val order: ByteOrder) : ReadChannel {
     private var remaining: ByteBuffer? = null
-    private var buffer = Empty
+    protected var buffer = Empty
 
     suspend override fun read(dst: ByteBuffer): Int {
         if (!dst.hasRemaining()) {
-            return if (source.isClosedForReceive && !buffer.hasRemaining()) -1 else 0
+            return if (isSourceClosed && !buffer.hasRemaining()) -1 else 0
         }
 
         if (!buffer.hasRemaining()) {
-            if (source.isClosedForReceive) return -1
+            if (isSourceClosed) return -1
 
             fill(1)
         }
@@ -91,7 +91,7 @@ class BinaryReadChannel(val source: ReceiveChannel<ByteBuffer>, val pool: Channe
 
     suspend fun fill(required: Int) {
         while (buffer.remaining() < required) {
-            val next = remaining ?: source.receiveOrNull() ?: break
+            val next = remaining ?: receiveImpl() ?: break
             remaining = null
 
             if (buffer.hasRemaining()) {
@@ -113,7 +113,10 @@ class BinaryReadChannel(val source: ReceiveChannel<ByteBuffer>, val pool: Channe
         if (buffer.remaining() < required) throw BufferUnderflowException()
     }
 
+    protected abstract suspend fun receiveImpl(): ByteBuffer?
+    protected abstract val isSourceClosed: Boolean
+
     companion object {
-        private val Empty = ByteBuffer.allocate(0)
+        protected val Empty = ByteBuffer.allocate(0)!!
     }
 }

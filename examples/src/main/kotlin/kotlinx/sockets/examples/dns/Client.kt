@@ -3,6 +3,8 @@ package kotlinx.sockets.examples.dns
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.sockets.*
+import kotlinx.sockets.adapters.*
+import kotlinx.sockets.channels.*
 import java.net.*
 import java.nio.*
 import java.util.*
@@ -60,14 +62,14 @@ private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: I
     client.connect(InetSocketAddress(server, 53))
 
     return client.use {
-        val output = client.openSendChannel(pool).binary(pool, ByteOrder.BIG_ENDIAN)
-        val input = client.openReceiveChannel(pool).binary(pool, ByteOrder.BIG_ENDIAN)
+        val output = client.openSendChannel(pool).buffered(pool, ByteOrder.BIG_ENDIAN)
+        val input = client.openReceiveChannel(pool).buffered(pool, ByteOrder.BIG_ENDIAN)
 
         doResolve(output, input, host, type)
     }
 }
 
-private suspend fun doResolve(out: BinaryWriteChannel, input: BinaryReadChannel, host: String, type: Type): Message {
+private suspend fun doResolve(out: BufferedWriteChannel, input: BufferedReadChannel, host: String, type: Type): Message {
     val rnd = Random()
     val id = (rnd.nextInt() and 0xffff).toShort()
 
@@ -94,6 +96,3 @@ private suspend fun doResolve(out: BinaryWriteChannel, input: BinaryReadChannel,
     }
     return result
 }
-
-private fun SendChannel<ByteBuffer>.binary(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.BIG_ENDIAN) = BinaryWriteChannel(this, pool, order)
-private fun ReceiveChannel<ByteBuffer>.binary(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.BIG_ENDIAN) = BinaryReadChannel(this, pool, order)
