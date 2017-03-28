@@ -92,8 +92,6 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         }
     }
 
-    class MyCancelledOperationException : Exception()
-
     override suspend fun write(src: ByteBuffer) {
         while (src.hasRemaining()) {
             val rc = channel.write(src)
