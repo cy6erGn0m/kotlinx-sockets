@@ -92,6 +92,7 @@ private suspend fun BufferedReadChannel.readQuestion(decoder: CharsetDecoder, su
 }
 
 private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, support: DomainNameCompressionSupport): Resource<*>? {
+//    val startOffset = support.currentOffset
     val name = readName(decoder, support)
     fill(10)
 
@@ -103,7 +104,7 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
     support.currentOffset += 10
 
     val type = Type.byValue[typeValue]
-//    println("Got $type")
+//    println("Got $type ($typeValue) at $startOffset")
     val result = when (type) {
         Type.A -> {
             val qClass = Class.byValue[value1]
@@ -121,7 +122,7 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
             if (length == 16 && qClass != null) {
                 val buffer = ByteBuffer.allocate(16)
                 readFully(buffer)
-                support.currentOffset += 4
+                support.currentOffset += 16
                 Resource.A.V6(name, qClass, InetAddress.getByAddress(buffer.array()) as Inet6Address, ttl = value2)
             } else null
         }
