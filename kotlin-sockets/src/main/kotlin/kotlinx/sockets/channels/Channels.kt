@@ -7,7 +7,7 @@ import java.nio.*
 /**
  * Represents a readable channel
  */
-interface ReadChannel : ASocket {
+interface ReadChannel {
     /**
      * Reads bytes from the channel to the given [dst] byte buffer. Suspends if no bytes available yet and
      * no end of stream reached.
@@ -17,9 +17,20 @@ interface ReadChannel : ASocket {
 }
 
 /**
+ * Represents output that could be shut down.
+ */
+interface Output {
+    /**
+     * Shut down output. It generally doesn't close related socket but just shut downs output channel
+     * so the remote peer will receive end of stream.
+     */
+    fun shutdownOutput()
+}
+
+/**
  * Represents a writable channel
  */
-interface WriteChannel : ASocket {
+interface WriteChannel : Output {
     /**
      * Writes bytes from the [src] byte buffer to the channel. Returns when only part or all of bytes were written
      * and updates buffer's position accordingly. Suspends if no bytes could be written immediately.
@@ -41,30 +52,22 @@ interface SocketSource<out S : Closeable> : ASocket {
 /**
  * Represents a character channel from one can read
  */
-interface CharReadChannel : ASocket {
+interface CharReadChannel {
     /**
      * Reads characters to the given [dst] buffer, suspends when no characters available yet
      * or returns -1 if end of stream reached.
      */
     suspend fun read(dst: CharBuffer): Int
-
-    override fun dispose() {
-        close()
-    }
 }
 
 /**
  * Represents a character channel to which one can write characters
  */
-interface CharWriteChannel : ASocket {
+interface CharWriteChannel : Output {
     /**
      * Writes characters from given [src] to the channel
      */
     suspend fun write(src: CharBuffer)
-
-    override fun dispose() {
-        close()
-    }
 }
 
 /**

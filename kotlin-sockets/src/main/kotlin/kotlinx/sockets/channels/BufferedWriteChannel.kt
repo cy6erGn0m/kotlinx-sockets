@@ -85,7 +85,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
         }
     }
 
-    override fun close() {
+    override fun shutdownOutput() {
         runBlocking {
             flush()
             if (pool !== Empty) {
@@ -93,7 +93,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
                 buffer = Empty
             }
 
-            closeImpl()
+            shutdownImpl()
         }
     }
 
@@ -119,7 +119,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
     }
 
     protected abstract suspend fun doWrite(buffer: ByteBuffer)
-    protected abstract fun closeImpl()
+    protected abstract fun shutdownImpl()
 
     private suspend fun newBuffer() {
         buffer = pool.receive().apply {

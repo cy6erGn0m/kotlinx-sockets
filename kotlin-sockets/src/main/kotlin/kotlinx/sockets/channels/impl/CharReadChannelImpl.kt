@@ -29,10 +29,6 @@ internal class CharReadChannelImpl(val source: ReadChannel, val charset: Charset
             else -> resultSize
         }
     }
-
-    override fun close() {
-        source.close()
-    }
 }
 
 /**

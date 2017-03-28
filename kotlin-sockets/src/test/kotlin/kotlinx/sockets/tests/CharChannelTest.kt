@@ -155,13 +155,5 @@ class CharChannelTest {
 
             throw ClosedChannelException()
         }
-
-        override fun close() {
-            buffer = null
-        }
-
-        override fun dispose() {
-            close()
-        }
     }
 }

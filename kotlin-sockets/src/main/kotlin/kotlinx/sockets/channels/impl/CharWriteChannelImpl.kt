@@ -26,8 +26,8 @@ internal class CharWriteChannelImpl(val sink: WriteChannel, val charset: Charset
         }
     }
 
-    override fun close() {
-        sink.close()
+    override fun shutdownOutput() {
+        sink.shutdownOutput()
     }
 }
 

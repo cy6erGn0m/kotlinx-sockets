@@ -94,10 +94,6 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
         return sb.toString()
     }
 
-    override fun close() {
-        // TODO not clear for now
-    }
-
     suspend fun fill(required: Int) {
         while (buffer.remaining() < required) {
             val next = remaining ?: receiveImpl() ?: break

@@ -14,8 +14,8 @@ internal class ChainedBufferedWriteChannel(val out: WriteChannel, pool: Channel<
         }
     }
 
-    override fun closeImpl() {
-        out.close()
+    override fun shutdownImpl() {
+        out.shutdownOutput()
     }
 }
 

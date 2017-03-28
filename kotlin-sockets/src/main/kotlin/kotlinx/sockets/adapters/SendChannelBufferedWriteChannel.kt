@@ -10,7 +10,7 @@ internal class SendChannelBufferedWriteChannel(val out: SendChannel<ByteBuffer>,
         out.send(buffer)
     }
 
-    override fun closeImpl() {
+    override fun shutdownImpl() {
         out.close()
     }
 }

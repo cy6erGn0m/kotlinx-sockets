@@ -6,7 +6,7 @@ import java.io.*
 import java.net.*
 
 /**
- * Base type for all async sockets and channels
+ * Base type for all async sockets
  */
 interface ASocket : Closeable, DisposableHandle {
     override fun dispose() {

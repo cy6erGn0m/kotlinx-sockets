@@ -118,6 +118,10 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         }
     }
 
+    override fun shutdownOutput() {
+        channel.shutdownOutput()
+    }
+
     override fun close() {
         channel.close()
 

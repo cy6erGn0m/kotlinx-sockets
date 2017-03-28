@@ -32,11 +32,6 @@ internal class BufferedCharReadChannelImpl(val source: CharReadChannel, private 
         return source.readLineTo(sb, buffer).first.toString()
     }
 
-    override fun close() {
-        buffer = EmptyBuffer
-        source.close()
-    }
-
     private suspend fun fill() = source.fill(buffer)
 
     companion object {
