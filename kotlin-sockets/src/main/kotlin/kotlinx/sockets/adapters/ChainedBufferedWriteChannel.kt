@@ -19,6 +19,6 @@ internal class ChainedBufferedWriteChannel(val out: WriteChannel, pool: Channel<
     }
 }
 
-fun WriteChannel.buffered(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()): BufferedWriteChannel {
+fun WriteChannel.bufferedWrite(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()): BufferedWriteChannel {
     return ChainedBufferedWriteChannel(this, pool, order)
 }

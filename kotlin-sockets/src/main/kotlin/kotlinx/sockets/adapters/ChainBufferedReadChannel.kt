@@ -29,6 +29,6 @@ internal class ChainBufferedReadChannel(val source: ReadChannel, pool: Channel<B
         get() = closed
 }
 
-fun ReadChannel.buffered(pool: Channel<ByteBuffer>, order: ByteOrder): BufferedReadChannel = ChainBufferedReadChannel(this, pool, order)
+fun ReadChannel.bufferedRead(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()): BufferedReadChannel = ChainBufferedReadChannel(this, pool, order)
 
 

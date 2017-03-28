@@ -15,7 +15,7 @@ internal class SendChannelBufferedWriteChannel(val out: SendChannel<ByteBuffer>,
     }
 }
 
-fun SendChannel<ByteBuffer>.buffered(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()) : BufferedWriteChannel {
+fun SendChannel<ByteBuffer>.bufferedWrite(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()) : BufferedWriteChannel {
     return SendChannelBufferedWriteChannel(this, pool, order)
 }
 

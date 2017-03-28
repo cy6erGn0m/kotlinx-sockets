@@ -14,5 +14,5 @@ internal class ReceiveChannelBufferedReadChannel(val source: ReceiveChannel<Byte
         get() = source.isClosedForReceive
 }
 
-fun ReceiveChannel<ByteBuffer>.buffered(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()): BufferedReadChannel = ReceiveChannelBufferedReadChannel(this, pool, order)
+fun ReceiveChannel<ByteBuffer>.bufferedRead(pool: Channel<ByteBuffer>, order: ByteOrder = ByteOrder.nativeOrder()): BufferedReadChannel = ReceiveChannelBufferedReadChannel(this, pool, order)
 
