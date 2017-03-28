@@ -4,9 +4,15 @@ import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
 import java.nio.charset.*
 
-abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBuffer>, val order: ByteOrder) : ReadChannel {
+abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBuffer>, order: ByteOrder) : ReadChannel {
     private var remaining: ByteBuffer? = null
     protected var buffer = Empty
+
+    var order: ByteOrder = order
+        set(newOrder) {
+            field = newOrder
+            buffer.order(newOrder)
+        }
 
     suspend override fun read(dst: ByteBuffer): Int {
         if (!dst.hasRemaining()) {
@@ -44,7 +50,11 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
     fun getUByte(): Int = buffer.get().toInt() and 0xff
     fun getShort(): Short = buffer.getShort()
     fun getUShort(): Int = buffer.getShort().toInt() and 0xffff
+    fun getInt(): Int = buffer.getInt()
     fun getUInt(): Long = buffer.getInt().toLong() and 0xffffffffL
+    fun getLong(): Long = buffer.getLong()
+    fun getDouble(): Double = buffer.getDouble()
+    fun getFloat(): Float = buffer.getFloat()
 
     suspend fun getStringByRawLength(length: Int, decoder: CharsetDecoder): String {
         val sb = StringBuilder((length * decoder.maxCharsPerByte()).toInt())

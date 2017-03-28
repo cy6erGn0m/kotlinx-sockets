@@ -18,8 +18,8 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
         buffer.put(value)
     }
 
-    fun putByteInt(value: Int) {
-        require(value < 0xff)
+    fun putUByte(value: Int) {
+        require(value <= 0xff)
         buffer.put(value.toByte())
     }
 
@@ -40,6 +40,18 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
 
     fun putUInt(value: Long) {
         buffer.putInt(value.toInt())
+    }
+
+    fun putLong(value: Long) {
+        buffer.putLong(value)
+    }
+
+    fun putFloat(value: Float) {
+        buffer.putFloat(value)
+    }
+
+    fun putDouble(value: Double) {
+        buffer.putDouble(value)
     }
 
     suspend fun putString(s: String, charset: Charset) {

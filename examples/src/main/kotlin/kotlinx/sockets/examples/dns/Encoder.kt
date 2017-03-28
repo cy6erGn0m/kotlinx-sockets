@@ -15,14 +15,14 @@ suspend fun BufferedWriteChannel.write(message: Message, encoder: CharsetEncoder
     }
 
     putShort(message.header.id)
-    putByteInt(
+    putUByte(
             (bit(7, !message.header.isQuery) or
                     bits(4, 4, message.header.opcode.value) or
                     bit(3, message.header.authoritativeAnswer) or
                     bit(1, message.header.truncation) or
                     bit(0, message.header.recursionDesired))
     )
-    putByteInt(bits(4, 0, message.header.responseCode.value)
+    putUByte(bits(4, 0, message.header.responseCode.value)
             or bit(7, message.header.recursionAvailable)
             or bit(5, message.header.authenticData)
             or bit(4, message.header.checkingDisabled)
@@ -89,11 +89,11 @@ private fun Resource<*>.measure(): Int {
 private suspend fun BufferedWriteChannel.encodeStringsSequence(items: Iterable<String>, encoder: CharsetEncoder) {
     for (s in items) {
         ensureCapacity(1)
-        putByteInt(s.length)
+        putUByte(s.length)
         putString(s, encoder)
     }
     ensureCapacity(1)
-    putByteInt(0)
+    putUByte(0)
 }
 
 
