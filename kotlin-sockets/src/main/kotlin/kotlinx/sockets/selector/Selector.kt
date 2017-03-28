@@ -148,8 +148,12 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
     private fun registerUnsafe(selectable: AsyncSelectable) {
         val requiredOps = selectable.interestedOps
 
-        selectable.channel.keyFor(selector.value)?.also { key -> if (key.interestOps() != requiredOps) key.interestOps(selectable.interestedOps) }
-                ?: selectable.channel.register(selector.value, requiredOps).also { key -> key.attach(selectable) }
+        selectable.channel.keyFor(selector.value)?.also { key ->
+            when {
+                !key.isValid -> key.cancel()
+                key.interestOps() != requiredOps -> key.interestOps(selectable.interestedOps)
+            }
+        } ?: selectable.channel.register(selector.value, requiredOps).also { key -> key.attach(selectable) }
     }
 }
 

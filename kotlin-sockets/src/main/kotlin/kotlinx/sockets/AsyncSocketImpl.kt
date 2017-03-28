@@ -117,11 +117,16 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     override fun close() {
-        channel.close()
-
         try {
-            onSelectionFailed(ClosedChannelException())
-        } catch (expected: CancelledKeyException) {
+            channel.close()
+        } finally {
+            try {
+                onSelectionFailed(ClosedChannelException())
+            } catch (expected: CancelledKeyException) {
+            } finally {
+                interestedOps = 0
+                pushClose(selector)
+            }
         }
     }
 

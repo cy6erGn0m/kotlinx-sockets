@@ -45,6 +45,10 @@ internal fun AsyncSelectable.pushInterest(selector: SelectorManager) {
     }
 }
 
+internal fun AsyncSelectable.pushClose(selector: SelectorManager) {
+    selector.registerSafe(this)
+}
+
 internal fun AsyncSelectable.pushInterestDirect(key: SelectionKey) {
     if (interestedOps != 0) {
         key.interestOps(interestedOps)
