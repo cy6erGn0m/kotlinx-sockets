@@ -1,32 +1,28 @@
-package kotlinx.sockets
+package kotlinx.sockets.impl
 
-import kotlinx.coroutines.experimental.*
+import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
-import java.net.*
-import java.nio.*
-import java.nio.channels.*
-import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 
-internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), AsyncSocket {
+internal class AsyncSocketImpl<out S : java.nio.channels.SocketChannel>(override val channel: S, val selector: kotlinx.sockets.selector.SelectorManager) : kotlinx.sockets.selector.SelectableBase(), kotlinx.sockets.AsyncSocket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
 
-    private val connectContinuation = AtomicReference<Continuation<Boolean>?>()
-    private val readContinuation = AtomicReference<Continuation<Unit>?>()
-    private val writeContinuation = AtomicReference<Continuation<Unit>?>()
+    private val connectContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Boolean>?>()
+    private val readContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Unit>?>()
+    private val writeContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Unit>?>()
 
-    override val localAddress: SocketAddress
+    override val localAddress: java.net.SocketAddress
         get() = channel.localAddress
 
-    override val remoteAddress: SocketAddress
+    override val remoteAddress: java.net.SocketAddress
         get() = channel.remoteAddress
 
-    override fun onSelected(key: SelectionKey) {
-        val changed = onSelectedGeneric(key, SelectionKey.OP_CONNECT, connectContinuation) { it.resume(false) } or
-                onSelectedGeneric(key, SelectionKey.OP_READ, readContinuation) { it.resume(Unit) } or
-                onSelectedGeneric(key, SelectionKey.OP_WRITE, writeContinuation) { it.resume(Unit) }
+    override fun onSelected(key: java.nio.channels.SelectionKey) {
+        val changed = onSelectedGeneric(key, java.nio.channels.SelectionKey.OP_CONNECT, connectContinuation) { it.resume(false) } or
+                onSelectedGeneric(key, java.nio.channels.SelectionKey.OP_READ, readContinuation) { it.resume(Unit) } or
+                onSelectedGeneric(key, java.nio.channels.SelectionKey.OP_WRITE, writeContinuation) { it.resume(Unit) }
 
         if (changed) {
             pushInterestDirect(key)
@@ -41,8 +37,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         interestedOps = 0
     }
 
-    internal suspend fun connect(target: SocketAddress): AsyncSocket {
-        var connected = channel.connect(target) || suspendCancellableCoroutine<Boolean> { c ->
+    internal suspend fun connect(target: java.net.SocketAddress): kotlinx.sockets.AsyncSocket {
+        var connected = channel.connect(target) || kotlinx.coroutines.experimental.suspendCancellableCoroutine<Boolean> { c ->
             connectContinuation.setHandler("connect", c)
             connectContinuation.setNullOnCancel(c)
             c.disposeOnCancel(this)
@@ -52,7 +48,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         }
 
         while (!connected) {
-            connected = channel.finishConnect() || suspendCancellableCoroutine<Boolean> { c ->
+            connected = channel.finishConnect() || kotlinx.coroutines.experimental.suspendCancellableCoroutine<Boolean> { c ->
                 connectContinuation.setHandler("finishConnect", c)
                 connectContinuation.setNullOnCancel(c)
                 c.disposeOnCancel(this)
@@ -67,12 +63,12 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         return this
     }
 
-    override suspend fun read(dst: ByteBuffer): Int {
+    override suspend fun read(dst: java.nio.ByteBuffer): Int {
         while (true) {
             val rc = channel.read(dst)
 
             if (rc == 0 && dst.hasRemaining()) {
-                suspendCancellableCoroutine<Unit> { c ->
+                kotlinx.coroutines.experimental.suspendCancellableCoroutine<Unit> { c ->
                     readContinuation.setHandler("read", c)
                     readContinuation.setNullOnCancel(c)
                     c.disposeOnCancel(this)
@@ -87,12 +83,12 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         }
     }
 
-    override suspend fun write(src: ByteBuffer) {
+    override suspend fun write(src: java.nio.ByteBuffer) {
         while (src.hasRemaining()) {
             val rc = channel.write(src)
 
             if (rc == 0 && src.hasRemaining()) {
-                suspendCancellableCoroutine<Unit> { c ->
+                kotlinx.coroutines.experimental.suspendCancellableCoroutine<Unit> { c ->
                     writeContinuation.setHandler("write", c)
                     writeContinuation.setNullOnCancel(c)
                     c.disposeOnCancel(this)
@@ -116,8 +112,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             channel.close()
         } finally {
             try {
-                onSelectionFailed(ClosedChannelException())
-            } catch (expected: CancelledKeyException) {
+                onSelectionFailed(java.nio.channels.ClosedChannelException())
+            } catch (expected: java.nio.channels.CancelledKeyException) {
             } finally {
                 interestedOps = 0
                 selector.ensureUnregistered()
@@ -126,14 +122,14 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     private fun wantConnect(state: Boolean = true) {
-        interestOp(SelectionKey.OP_CONNECT, state)
+        interestOp(java.nio.channels.SelectionKey.OP_CONNECT, state)
     }
 
     private fun wantMoreBytesRead(state: Boolean = true) {
-        interestOp(SelectionKey.OP_READ, state)
+        interestOp(java.nio.channels.SelectionKey.OP_READ, state)
     }
 
     private fun wantMoreSpaceForWrite(state: Boolean = true) {
-        interestOp(SelectionKey.OP_WRITE, state)
+        interestOp(java.nio.channels.SelectionKey.OP_WRITE, state)
     }
 }
