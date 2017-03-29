@@ -8,25 +8,13 @@ import java.net.*
 /**
  * Base type for all async sockets
  */
-interface ASocket : Closeable, DisposableHandle, AConfigurableSocket {
+interface ASocket : Closeable, DisposableHandle {
     override fun dispose() {
         try {
             close()
         } catch (ignore: Throwable) {
         }
     }
-}
-
-interface AConfigurableSocket {
-    /**
-     * Configures option [option] with given [value]. Could throw an exception if [option] is not supported by
-     * the socket or [value] is not relevant or invalid.
-     */
-    fun <T> setOption(option: SocketOption<T>, value: T)
-
-    fun <T> getOption(option: SocketOption<T>): T
-
-    val supportedOptions: Set<SocketOption<*>>
 }
 
 interface AConnectedSocket : WriteChannel {
@@ -54,43 +42,13 @@ interface AsyncAcceptable<out S : ASocket> : ASocket {
     suspend fun accept(): S
 }
 
-interface AReadWriteSocket : ASocket, ReadWriteChannel
+interface ReadWriteSocket : ASocket, ReadWriteChannel
 
-interface ABoundableSocket<out S : ABoundSocket> : ASocket {
-    fun bind(localAddress: SocketAddress?): S
-}
+interface AsyncSocket : ReadWriteSocket, ABoundSocket, AConnectedSocket
 
-interface AConnectableSocket<out S : AConnectedSocket> : ASocket {
-    /**
-     * Connect socket to the specified [target], suspends until connection succeeds.
-     */
-    suspend fun connect(target: SocketAddress): S
-}
-
-interface AsyncInitialSocket : ASocket, AConnectableSocket<AsyncSocket>
-
-/**
- * Represents a TCP socket. Provides ability to [connect], [read] and [write].
- */
-interface AsyncSocket : AReadWriteSocket, ABoundSocket, AConnectedSocket
-
-interface AsyncUnboundServerSocket : ASocket, ABoundableSocket<AsyncServerSocket> {
-    /**
-     * Bind server socket to the specified [localAddress].
-     * Will automatically choose some random local address if [localAddress] is null.
-     * Could fail if [localAddress] is already in use or if there are no free local ports available.
-     */
-    override fun bind(localAddress: SocketAddress?): AsyncServerSocket
-}
-
-/**
- * Represents a server TCP socket that could be bound via [bind] and used to [accept] connections.
- */
 interface AsyncServerSocket : ASocket, ABoundSocket, AsyncAcceptable<AsyncSocket>
 
-interface AsyncFreeDatagramSocket  : ASocket, ABoundableSocket<AsyncBoundDatagramSocket>, AConnectableSocket<AsyncConnectedDatagramSocket>, DatagramReadWriteChannel
+interface AsyncBoundDatagramSocket : ASocket, ABoundSocket, ReadChannel, DatagramReadWriteChannel
 
-interface AsyncBoundDatagramSocket : ASocket, ABoundSocket, AConnectableSocket<AsyncConnectedDatagramSocket>, ReadChannel, DatagramWriteChannel
-
-interface AsyncConnectedDatagramSocket : AReadWriteSocket, ABoundSocket, AConnectedSocket
+interface AsyncConnectedDatagramSocket : ASocket, ABoundSocket, AConnectedSocket, ReadWriteSocket, DatagramReadWriteChannel
 

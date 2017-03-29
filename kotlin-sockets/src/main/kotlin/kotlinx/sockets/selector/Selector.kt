@@ -2,15 +2,16 @@ package kotlinx.sockets.selector
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
-import kotlinx.sockets.impl.DatagramSocketImpl
-import java.net.*
+import java.io.*
 import java.nio.channels.*
+import java.nio.channels.spi.*
 import java.util.concurrent.*
+import kotlin.coroutines.experimental.*
 
 /**
  * Represents a coroutine facade for NIO selector and socket factory. Need to be closed to release resources.
  */
-class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, java.io.Closeable {
+class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, java.io.Closeable {
     @Volatile
     private var closed = false
     private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open()!! }
@@ -27,39 +28,16 @@ class SelectorManager(dispatcher: kotlin.coroutines.experimental.CoroutineContex
         }
     }
 
-    /**
-     * Creates TCP socket that not yet connected
-     */
-    fun socket(): AsyncInitialSocket {
+    internal inline fun <C : Closeable, R> buildOrClose(create: SelectorProvider.() -> C, setup: C.() -> R): R {
+        val result = create(selector.value.provider())
         ensureStarted()
-        return AsyncSocketImpl(selector.value.provider().openSocketChannel().apply {
-            configureBlocking(false)
-        }, this)
-    }
 
-    /**
-     * Opens socket, configures it by [configure] function (optional) and connects it to [address], suspends until connection
-     * completed (possibly failed).
-     */
-    suspend fun socket(address: SocketAddress, configure: AsyncInitialSocket.() -> Unit = {}): AsyncSocket {
-        return socket().run { configure(this); connect(address) }
-    }
-
-    /**
-     * Creates TCP server socket that not yet bound.
-     */
-    fun serverSocket(): AsyncUnboundServerSocket {
-        ensureStarted()
-        return AsyncServerSocketImpl(selector.value.provider().openServerSocketChannel().apply {
-            configureBlocking(false)
-        }, this)
-    }
-
-    fun datagramSocket(): AsyncFreeDatagramSocket {
-        ensureStarted()
-        return DatagramSocketImpl(selector.value.provider().openDatagramChannel().apply {
-            configureBlocking(false)
-        }, this)
+        try {
+            return setup(result)
+        } catch (t: Throwable) {
+            result.close()
+            throw t
+        }
     }
 
     /**

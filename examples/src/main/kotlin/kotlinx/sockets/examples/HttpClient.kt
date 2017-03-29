@@ -10,8 +10,7 @@ import java.nio.*
 fun main(args: Array<String>) {
     runBlocking {
         SelectorManager().use { manager ->
-            manager.socket().use { before ->
-                val socket = before.connect(InetSocketAddress(InetAddress.getByName("google.com"), 80))
+            manager.aSocket().tcp().connect(InetSocketAddress(InetAddress.getByName("google.com"), 80)).use {  socket ->
                 println("Connected")
 
                 socket.send("GET / HTTP/1.1\r\n")

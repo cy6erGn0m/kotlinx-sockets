@@ -28,9 +28,7 @@ class RequestSender(val urls: ReceiveChannel<ConnectionRequest>, val connections
         // dns resolution is blocking here
         val address = InetSocketAddress(url.host, url.port.takeIf { it != -1 } ?: url.defaultPort.takeIf { it != -1 } ?: 80)
 
-        val socket = socket().apply {
-            setOption(StandardSocketOptions.TCP_NODELAY, true)
-        }.connect(address)
+        val socket = aSocket().tcp().tcpNoDelay().connect(address)
 
         val request = buildString(256) {
             append("GET "); append(url.file); append(" HTTP/1.1\r\n")

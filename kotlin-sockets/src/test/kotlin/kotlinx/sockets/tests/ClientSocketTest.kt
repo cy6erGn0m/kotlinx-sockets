@@ -113,8 +113,8 @@ class ClientSocketTest {
 
     private fun client(block: suspend (AsyncSocket) -> Unit) {
         runBlocking {
-            selector.socket().use {
-                block(it.connect(server!!.first.localSocketAddress))
+            selector.aSocket().tcp().connect(server!!.first.localSocketAddress).use {
+                block(it)
             }
         }
     }

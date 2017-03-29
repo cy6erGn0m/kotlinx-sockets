@@ -136,7 +136,7 @@ fun ReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset
 
 /**
  * Creates a job to receive text decoded by [charset] decoder to the specified [destination] channel passing through
- * the fiven [transform] function.
+ * the given [transform] function.
  *
  * @return a job that is not yet started
  */
@@ -388,12 +388,12 @@ private suspend fun <T : ASocket, S : AsyncAcceptable<T>, R> acceptorLoop(source
  * Opens channel of input addresses to connect to and a channel of connected sockets and starts processing job.
  * Every socket is configured by [configure] function before connect.
  */
-fun SelectorManager.openConnector(configure: AConfigurableSocket.(SocketAddress) -> Unit = {}): Pair<SendChannel<SocketAddress>, ReceiveChannel<AsyncSocket>> {
+fun SelectorManager.openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}): Pair<SendChannel<SocketAddress>, ReceiveChannel<AsyncSocket>> {
     return openConnector({ it }, { _, s -> s }, configure)
 }
 
 /**
- * Opens channel of input addresses to connect to (consists of elemenets of type [A])
+ * Opens channel of input addresses to connect to (consists of elements of type [A])
  * and a channel of connected sockets (elements of type [R]) and starts processing job.
  * Every input element of type [A] is mapped by [inTransform] function to a [SocketAddress].
  * Every socket is configured by [configure] function before connect and mapped to an element of type [R] after connect
@@ -403,7 +403,7 @@ fun SelectorManager.openConnector(configure: AConfigurableSocket.(SocketAddress)
  */
 fun <A, R> SelectorManager.openConnector(inTransform: (A) -> SocketAddress,
                                          outTransform: (A, AsyncSocket) -> R,
-                                         configure: AConfigurableSocket.(A) -> Unit = {}): Pair<SendChannel<A>, ReceiveChannel<R>> {
+                                         configure: Configurable<*>.(A) -> Unit = {}): Pair<SendChannel<A>, ReceiveChannel<R>> {
 
     val source = ArrayChannel<A>(1000)
     val destination = ArrayChannel<R>(1000)
@@ -423,7 +423,7 @@ private suspend fun <A, R> connectorLoop(selector: SelectorManager,
                                          destination: SendChannel<R>,
                                          inTransform: (A) -> SocketAddress,
                                          outTransform: (A, AsyncSocket) -> R,
-                                         configure: AConfigurableSocket.(A) -> Unit) {
+                                         configure: Configurable<*>.(A) -> Unit) {
 
     val runningCounter = AtomicLong()
     val latch = ConflatedChannel<Boolean>()
@@ -434,14 +434,14 @@ private suspend fun <A, R> connectorLoop(selector: SelectorManager,
         runningCounter.incrementAndGet()
         launch(ioCoroutineDispatcher) {
             val address = inTransform(src)
-            val socket = selector.socket()
+            val socket = selector.aSocket().tcp()
             configure(socket, src)
 
             val connected = socket.connect(address)
             try {
                 destination.send(outTransform(src, connected))
             } catch (t: Throwable) {
-                socket.close()
+                connected.close()
                 throw t
             }
         }.invokeOnCompletion { if (runningCounter.decrementAndGet() == 0L) launch(ioCoroutineDispatcher) { latch.send(true) } }

@@ -58,13 +58,11 @@ private fun inet4address(a: Int, b: Int, c: Int, d: Int): InetAddress {
 }
 
 private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
-    val client: AReadWriteSocket = if (tcp) {
-        socket().run {
-            setOption(StandardSocketOptions.TCP_NODELAY, true)
-            connect(InetSocketAddress(server, 53))
-        }
+    val remoteAddress = InetSocketAddress(server, 53)
+    val client: ReadWriteSocket = if (tcp) {
+        aSocket().tcp().tcpNoDelay().connect(remoteAddress)
     } else {
-        datagramSocket().connect(InetSocketAddress(server, 53))
+        aSocket().udp().connect(remoteAddress)
     }
 
     return client.use {

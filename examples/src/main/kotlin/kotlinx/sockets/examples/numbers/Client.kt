@@ -1,6 +1,7 @@
 package kotlinx.sockets.examples.numbers
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.sockets.*
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
 import kotlinx.sockets.selector.*
@@ -16,10 +17,9 @@ fun main(args: Array<String>) {
 fun numbersClient(port: Int, log: Boolean): Long {
     return runBlocking(CommonPool) {
         SelectorManager().use { selector ->
-            selector.socket().use { before ->
-                before.setOption(StandardSocketOptions.TCP_NODELAY, true) // disable Nagel's
-                val socket = before.connect(InetSocketAddress(port))
-
+            selector.aSocket().tcp().configure {
+                this[StandardSocketOptions.TCP_NODELAY] = true // disable Nagel's
+            }.connect(InetSocketAddress(port)).use { socket ->
                 if (log) {
                     println("Connected")
                 }

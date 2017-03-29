@@ -2,6 +2,7 @@ package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
+import kotlinx.sockets.*
 import kotlinx.sockets.adapters.*
 import kotlinx.sockets.selector.*
 import org.junit.*
@@ -16,9 +17,7 @@ class SelectorTest {
 
         runBlocking(CommonPool) {
             SelectorManager().use { selector ->
-                selector.socket().use { before ->
-                    val socket = before.connect(InetSocketAddress("google.com", 80))
-
+                selector.aSocket().tcp().connect(InetSocketAddress("google.com", 80)).use { socket ->
                     val out = ArrayChannel<String>(10)
                     val input = ArrayChannel<String>(2)
 

@@ -9,7 +9,7 @@ import java.nio.channels.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
 
-internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : AsyncFreeDatagramSocket, AsyncBoundDatagramSocket, AsyncConnectedDatagramSocket, SelectableBase() {
+internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : AsyncBoundDatagramSocket, AsyncConnectedDatagramSocket, SelectableBase() {
 
     private val receiveOrReadContinuation = AtomicReference<Continuation<Unit>?>(null)
     private val writeOrSendContinuation = AtomicReference<Continuation<Unit>?>(null)
@@ -94,29 +94,8 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
         }
     }
 
-    override fun <T> setOption(option: SocketOption<T>, value: T) {
-        channel.setOption(option, value)
-    }
-
-    override fun <T> getOption(option: SocketOption<T>): T {
-        return channel.getOption(option)
-    }
-
-    override val supportedOptions: Set<SocketOption<*>>
-        get() = channel.supportedOptions()
-
     override fun close() {
         channel.close()
-    }
-
-    suspend override fun connect(target: SocketAddress): AsyncConnectedDatagramSocket {
-        channel.connect(target)
-        return this
-    }
-
-    override fun bind(localAddress: SocketAddress?): AsyncBoundDatagramSocket {
-        channel.bind(localAddress)
-        return this
     }
 
     override fun onSelected(key: SelectionKey) {

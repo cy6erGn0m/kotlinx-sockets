@@ -9,9 +9,7 @@ import java.nio.*
 fun main(args: Array<String>) {
     runBlocking {
         SelectorManager().use { selector ->
-            selector.serverSocket().use { before ->
-                val server = before.bind(InetSocketAddress(9094))
-
+            selector.aSocket().tcp().bind(InetSocketAddress(9094)).use { server ->
                 while (true) {
                     runClient(server.accept())
                 }

@@ -14,8 +14,7 @@ fun main(args: Array<String>) {
 
 fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket {
     val selector = SelectorManager()
-    val socket = selector.serverSocket()
-    val server = socket.bind(port?.let(::InetSocketAddress))
+    val server = selector.aSocket().tcp().bind(port?.let(::InetSocketAddress))
 
     launch(CommonPool) {
         onBound()
