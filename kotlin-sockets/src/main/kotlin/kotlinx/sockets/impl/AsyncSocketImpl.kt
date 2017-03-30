@@ -1,64 +1,33 @@
 package kotlinx.sockets.impl
 
-import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
+import java.net.*
 import java.nio.*
 import java.nio.channels.*
-import kotlin.coroutines.experimental.*
 
 internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), AsyncSocket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
 
-    private val connectContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Boolean>?>()
-    private val readContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Unit>?>()
-    private val writeContinuation = java.util.concurrent.atomic.AtomicReference<Continuation<Unit>?>()
-
-    override val localAddress: java.net.SocketAddress
+    override val localAddress: SocketAddress
         get() = channel.localAddress
 
-    override val remoteAddress: java.net.SocketAddress
+    override val remoteAddress: SocketAddress
         get() = channel.remoteAddress
 
-    override fun onSelected(key: SelectionKey) {
-        val changed = onSelectedGeneric(key, SelectionKey.OP_CONNECT, connectContinuation) { it.resume(false) } or
-                onSelectedGeneric(key, SelectionKey.OP_READ, readContinuation) { it.resume(Unit) } or
-                onSelectedGeneric(key, SelectionKey.OP_WRITE, writeContinuation) { it.resume(Unit) }
+    internal suspend fun connect(target: SocketAddress): AsyncSocket {
+        if (channel.connect(target)) return this
 
-        if (changed) {
-            key.interestOps(interestedOps)
-        }
-    }
+        wantConnect(true)
+        selector.select(this, SelectInterest.CONNECT)
 
-    override fun onSelectionFailed(t: Throwable) {
-        interestedOps = 0
-        connectContinuation.invokeIfPresent { resumeWithException(t) }
-        readContinuation.invokeIfPresent { resumeWithException(t) }
-        writeContinuation.invokeIfPresent { resumeWithException(t) }
-        interestedOps = 0
-    }
-
-    internal suspend fun connect(target: java.net.SocketAddress): kotlinx.sockets.AsyncSocket {
-        var connected = channel.connect(target) || suspendCancellableCoroutine<Boolean> { c ->
-            connectContinuation.setHandler("connect", c)
-            connectContinuation.setNullOnCancel(c)
-            c.disposeOnCancel(this)
+        while (true) {
+            if (channel.finishConnect()) break
 
             wantConnect(true)
-            selector.notifyInterest(this)
-        }
-
-        while (!connected) {
-            connected = channel.finishConnect() || suspendCancellableCoroutine<Boolean> { c ->
-                connectContinuation.setHandler("finishConnect", c)
-                connectContinuation.setNullOnCancel(c)
-                c.disposeOnCancel(this)
-
-                wantConnect(true)
-                selector.notifyInterest(this)
-            }
+            selector.select(this, SelectInterest.CONNECT)
         }
 
         wantConnect(false)
@@ -71,14 +40,8 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
             val rc = channel.read(dst)
 
             if (rc == 0 && dst.hasRemaining()) {
-                suspendCancellableCoroutine<Unit> { c ->
-                    readContinuation.setHandler("read", c)
-                    readContinuation.setNullOnCancel(c)
-                    c.disposeOnCancel(this)
-
-                    wantMoreBytesRead()
-                    selector.notifyInterest(this)
-                }
+                wantMoreBytesRead()
+                selector.select(this, SelectInterest.READ)
             } else {
                 wantMoreBytesRead(false)
                 return rc
@@ -87,18 +50,12 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     }
 
     override suspend fun write(src: ByteBuffer) {
-        while (src.hasRemaining()) {
+        while (true) {
             val rc = channel.write(src)
 
             if (rc == 0 && src.hasRemaining()) {
-                suspendCancellableCoroutine<Unit> { c ->
-                    writeContinuation.setHandler("write", c)
-                    writeContinuation.setNullOnCancel(c)
-                    c.disposeOnCancel(this)
-
-                    wantMoreSpaceForWrite()
-                    selector.notifyInterest(this)
-                }
+                wantMoreSpaceForWrite()
+                selector.select(this, SelectInterest.WRITE)
             } else {
                 wantMoreSpaceForWrite(false)
                 return
@@ -114,25 +71,19 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
         try {
             channel.close()
         } finally {
-            try {
-                onSelectionFailed(ClosedChannelException())
-            } catch (expected: CancelledKeyException) {
-            } finally {
-                interestedOps = 0
-                selector.notifyClosed(this)
-            }
+            selector.notifyClosed(this)
         }
     }
 
     private fun wantConnect(state: Boolean = true) {
-        interestOp(SelectionKey.OP_CONNECT, state)
+        interestOp(SelectInterest.CONNECT, state)
     }
 
     private fun wantMoreBytesRead(state: Boolean = true) {
-        interestOp(SelectionKey.OP_READ, state)
+        interestOp(SelectInterest.READ, state)
     }
 
     private fun wantMoreSpaceForWrite(state: Boolean = true) {
-        interestOp(SelectionKey.OP_WRITE, state)
+        interestOp(SelectInterest.WRITE, state)
     }
 }

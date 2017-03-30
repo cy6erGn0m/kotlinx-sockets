@@ -1,18 +1,23 @@
 package kotlinx.sockets.selector
 
+import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import java.io.*
 import java.nio.channels.*
-import java.nio.channels.spi.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.*
 
-class OnDemandSelectorManager : Closeable, SelectorManager {
-    override val provider: SelectorProvider = SelectorProvider.provider()
-
+/**
+ * A selector manager that creates a selector instance and run selection loop on-demand only.
+ * Will automatically dispose selector instance and stop loop on idle of time specified by [idleTime] [idleTimeUnit] (5 seconds by default).
+ *
+ * Once closed auto-start will not work anymore.
+ */
+class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit = TimeUnit.SECONDS) : Closeable, SelectorManagerSupport() {
     @Volatile
     private var closed = false
     private val interestQueue = ArrayBlockingQueue<AsyncSelectable>(1000)
+    private val currentSelector = AtomicReference<Selector?>()
 
     override fun close() {
         closed = true
@@ -23,52 +28,41 @@ class OnDemandSelectorManager : Closeable, SelectorManager {
         }
     }
 
-    override fun notifyInterest(s: AsyncSelectable) {
-        interestQueue.put(s)
+    suspend override fun select(selectable: AsyncSelectable, interest: SelectInterest) {
+        require(selectable !== Poison)
+
+        var selector = currentSelector.get()
+        if (selector == null) {
+            selector = suspendCancellableCoroutine<Selector> { c ->
+                c.disposeOnCancel(selectable)
+                withSelector {
+                    c.resume(this)
+                }
+            }
+        }
+
+        select(selector, selectable, interest, { interestQueue.put(it) })
         withSelector { wakeup() }
-    }
-
-    override fun notifyInterestDirect(s: AsyncSelectable) {
-        require(Thread.currentThread().threadGroup === selectorsGroup)
-
-        pushInterestImpl(s)
     }
 
     override fun notifyClosed(s: AsyncSelectable) {
         withSelector(false) {
-            s.channel.keyFor(this)?.attach(null)
-            this.wakeup()
+            s.channel.keyFor(this)?.subject = null
+            wakeup()
         }
     }
 
-    private fun pushInterestImpl(s: AsyncSelectable) {
-        if (s.interestedOps != 0) {
-            withSelector {
-                pushInterestImpl(this, s)
-            }
+    private fun withSelector(forceStart: Boolean = true, block: Selector.() -> Unit) {
+        val existing = currentSelector.get()
+        if (closed && forceStart) {
+            throw IllegalStateException("SelectorManager is closed")
+        } else if (existing != null) {
+            block(existing)
+        } else if (forceStart) {
+            start(block)
         }
     }
 
-    private fun pushInterestImpl(selector: Selector, s: AsyncSelectable) {
-        if (s !== Poison) {
-            try {
-                s.channel.keyFor(selector)?.interestOps(s.interestedOps) ?: selector.assignKey(s)
-            } catch (e: ClosedChannelException) {
-                s.channel.keyFor(selector)?.apply {
-                    cancel()
-                    attach(null)
-                }
-            } catch (e: CancelledKeyException) {
-            }
-        }
-    }
-
-
-    private fun Selector.assignKey(s: AsyncSelectable) {
-        s.channel.register(this, s.interestedOps, s)
-    }
-
-    private val currentSelector = AtomicReference<Selector?>()
     private fun selectorMain(block: (Selector.() -> Unit)?) {
         var evaluated = false
         require(Thread.currentThread().threadGroup === selectorsGroup)
@@ -84,6 +78,9 @@ class OnDemandSelectorManager : Closeable, SelectorManager {
                     do {
                         loop(selector)
                     } while (interestQueue.isNotEmpty() && !closed)
+                } catch (e: ClosedSelectorException) {
+                    closed = true
+                    break
                 } finally {
                     currentSelector.set(null)
                     if (interestQueue.isEmpty()) {
@@ -102,63 +99,31 @@ class OnDemandSelectorManager : Closeable, SelectorManager {
         processInterestQueue(selector)
 
         while (!closed) {
-            if (!selector.isOpen) return
-
             val preselected = selector.selectNow()
             val hasInterestToProcess = interestQueue.isNotEmpty()
 
             if (preselected == 0 && selector.keys().isEmpty() && !hasInterestToProcess && !closed) {
-                val e = interestQueue.poll(5L, TimeUnit.SECONDS) ?: return
-                pushInterestImpl(selector, e)
-                processInterestQueue(selector)
-            } else {
-                if (preselected > 0 || hasInterestToProcess || selector.select() > 0) {
-                    selector.selectedKeys().forEach {
-                        dispatchSelectedKey(it)
-                    }
-                    selector.selectedKeys().clear()
-                }
+                val e = interestQueue.poll(idleTime, idleTimeUnit) ?: return
+                if (e === Poison) break
 
-                processInterestQueue(selector)
+                applyInterest(selector, e)
+            } else if (preselected > 0 || hasInterestToProcess || selector.select() > 0) {
+                selector.selectedKeys().forEach {
+                    tryHandleSelectedKey(selector, it)
+                }
+                selector.selectedKeys().clear()
             }
+
+            processInterestQueue(selector)
         }
     }
 
     private fun processInterestQueue(selector: Selector) {
         while (!closed) {
             val e = interestQueue.poll() ?: break
-            pushInterestImpl(selector, e)
-        }
-    }
+            if (e == Poison) break
 
-    private fun dispatchSelectedKey(key: SelectionKey) {
-        try {
-            key.interestOps(0)
-        } catch (expected: CancelledKeyException) {
-            return
-        }
-
-        val subj = key.attachment() as? AsyncSelectable
-
-        try {
-            subj?.onSelected(key) ?: key.cancel()
-        } catch (t: Throwable) {
-            try {
-                subj?.onSelectionFailed(t) ?: t.printStackTrace()
-            } catch (t2: Throwable) {
-                t2.printStackTrace()
-            } finally {
-                key.cancel()
-            }
-        }
-    }
-
-    private fun withSelector(forceStart: Boolean = true, block: Selector.() -> Unit) {
-        val existing = currentSelector.get()
-        if (existing != null) {
-            block(existing)
-        } else if (forceStart) {
-            start(block)
+            applyInterest(selector, e)
         }
     }
 
@@ -170,16 +135,22 @@ class OnDemandSelectorManager : Closeable, SelectorManager {
 
     companion object {
         private val Poison = object : AsyncSelectable {
+            override val suspensions: InterestSuspensionsMap
+                get() = throw UnsupportedOperationException()
+
             override val channel: SelectableChannel
                 get() = throw UnsupportedOperationException()
 
             override val interestedOps: Int
                 get() = 0
 
-            override fun onSelected(key: SelectionKey) {
+            override fun close() {
             }
 
-            override fun onSelectionFailed(t: Throwable) {
+            override fun dispose() {
+            }
+
+            override fun interestOp(interest: SelectInterest, state: Boolean) {
             }
         }
     }

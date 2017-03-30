@@ -1,6 +1,7 @@
 package kotlinx.sockets.selector
 
 import java.io.*
+import java.nio.channels.*
 import java.nio.channels.spi.*
 
 /**
@@ -10,24 +11,31 @@ interface SelectorManager {
     val provider: SelectorProvider
 
     /**
-     * Notifies selector that interest ops has been changed
-     */
-    fun notifyInterest(s: AsyncSelectable)
-
-    /**
-     * Notifies selector that interest ops has been changed.
-     * Should be only called from the selector loop
-     */
-    fun notifyInterestDirect(s: AsyncSelectable)
-
-    /**
      * Notifies the selector that selectable has been closed.
      */
     fun notifyClosed(s: AsyncSelectable)
 
+    /**
+     * Suspends until [interest] is selected for [selectable]
+     * May cause manager to allocate and run selector instance if not yet created.
+     *
+     * Only one selection is allowed per [interest] per [selectable] but you can
+     * select for different interests for the same selectable simultaneously.
+     * In other words you can select for read and write at the same time but should never
+     * try to read twice for the same selectable.
+     */
+    suspend fun select(selectable: AsyncSelectable, interest: SelectInterest)
+
     companion object {
         val DefaultSelectorManager = OnDemandSelectorManager()
     }
+}
+
+enum class SelectInterest(val flag: Int) {
+    READ(SelectionKey.OP_READ),
+    WRITE(SelectionKey.OP_WRITE),
+    ACCEPT(SelectionKey.OP_ACCEPT),
+    CONNECT(SelectionKey.OP_CONNECT)
 }
 
 /**

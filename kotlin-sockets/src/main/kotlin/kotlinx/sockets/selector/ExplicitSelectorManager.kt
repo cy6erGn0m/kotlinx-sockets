@@ -4,20 +4,16 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import java.io.*
 import java.nio.channels.*
-import java.nio.channels.spi.*
 import java.util.concurrent.*
 
 /**
  * A selector manager that creates selector and loop thread lazily and only disposes it on [close].
  */
-class ExplicitSelectorManager : Closeable, SelectorManager, DisposableHandle {
+class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupport() {
     @Volatile
     private var closed = false
-
-    private val selector = lazy { if (closed) throw ClosedSelectorException(); ensureStarted(); Selector.open()!! }
-    private val q = ArrayBlockingQueue<AsyncSelectable>(1000)
-
-    override val provider: SelectorProvider = SelectorProvider.provider()
+    private val selector = lazy { ensureStarted(); Selector.open()!! }
+    private val interestQueue = ArrayBlockingQueue<AsyncSelectable>(1000)
 
     private val selectorJob = launch(selectorsCoroutineDispatcher, false) {
         try {
@@ -56,21 +52,21 @@ class ExplicitSelectorManager : Closeable, SelectorManager, DisposableHandle {
         close()
     }
 
-    override fun notifyInterest(s: AsyncSelectable) {
-        q.put(s)
-        selector.value.wakeup()
-    }
-
     override fun notifyClosed(s: AsyncSelectable) {
         if (selector.isInitialized()) {
-            selector.value.wakeup()
+            s.channel.keyFor(selector.value)?.let { key ->
+                key.subject?.let { attachment ->
+                    notifyClosedImpl(selector.value, key, attachment)
+                }
+
+                key.subject = null
+                selector.value.wakeup()
+            }
         }
     }
 
-    override fun notifyInterestDirect(s: AsyncSelectable) {
-        require(Thread.currentThread().threadGroup === selectorsGroup)
-
-        registerUnsafe(s)
+    suspend override fun select(selectable: AsyncSelectable, interest: SelectInterest) {
+        select(selector.value, selectable, interest, { interestQueue.put(it) })
     }
 
     private tailrec fun selectorLoop(selector: Selector) {
@@ -80,72 +76,22 @@ class ExplicitSelectorManager : Closeable, SelectorManager, DisposableHandle {
                 val key = keys.next()
                 keys.remove()
 
-                handleKey(key)
+                tryHandleSelectedKey(selector, key)
             }
         }
 
         if (closed) return
 
         while (!closed) {
-            val selectable = q.poll() ?: break
-            handleRegister(selectable)
+            val selectable = interestQueue.poll() ?: break
+            applyInterest(selector, selectable)
         }
 
         selectorLoop(selector)
-    }
-
-    private fun handleKey(key: SelectionKey) {
-        try {
-            key.interestOps(0)
-
-            handleSelectedKey(key, null)
-        } catch (t: Throwable) { // key cancelled or rejected execution
-            try {
-                handleSelectedKey(key, t)
-            } catch (t2: Throwable) {
-                t.printStackTrace()
-                t2.printStackTrace()
-            }
-        }
     }
 
     private fun ensureStarted() {
         if (closed) throw ClosedSelectorException()
         selectorJob.start()
     }
-
-    private fun handleSelectedKey(key: SelectionKey, t: Throwable?) {
-        (key.attachment() as? AsyncSelectable)?.apply {
-            if (t != null) {
-                onSelectionFailed(t)
-            } else {
-                try {
-                    onSelected(key)
-                } catch (t: CancelledKeyException) {
-                    key.attach(null)
-                    onSelectionFailed(t)
-                }
-            }
-        }
-    }
-
-    private fun handleRegister(selectable: AsyncSelectable) {
-        try {
-            registerUnsafe(selectable)
-        } catch (c: ClosedChannelException) {
-        } catch (c: CancelledKeyException) {
-        }
-    }
-
-    private fun registerUnsafe(selectable: AsyncSelectable) {
-        val requiredOps = selectable.interestedOps
-
-        selectable.channel.keyFor(selector.value)?.also { key ->
-            when {
-                !key.isValid -> key.cancel()
-                key.interestOps() != requiredOps -> key.interestOps(selectable.interestedOps)
-            }
-        } ?: selectable.channel.register(selector.value, requiredOps).also { key -> key.attach(selectable) }
-    }
 }
-

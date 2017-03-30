@@ -8,13 +8,17 @@ import java.net.*
 import java.util.logging.*
 
 fun main(args: Array<String>) {
-    startNumbersServer(9096)
+    val (_, job) = startNumbersServer(9096)
+
+    runBlocking {
+        job.join()
+    }
 }
 
-fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket {
+fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<AsyncServerSocket, Job> {
     val server = aSocket().tcp().bind(port?.let(::InetSocketAddress))
 
-    launch(CommonPool) {
+    val serverJob = launch(CommonPool) {
         onBound()
         while (true) {
             var client: AsyncSocket? = null
@@ -30,11 +34,13 @@ fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket 
                 client?.close()
             }
         }
-    }.invokeOnCompletion {
-        server.close()
+    }.apply {
+        invokeOnCompletion {
+            server.close()
+        }
     }
 
-    return server
+    return Pair(server, serverJob)
 }
 
 private suspend fun runClient(client: AsyncSocket) {

@@ -1,14 +1,16 @@
 package kotlinx.sockets.selector
 
-import kotlinx.sockets.*
+import kotlinx.coroutines.experimental.*
+import java.io.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
-import kotlin.coroutines.experimental.*
 
 /**
  * A selectable entity with selectable NIO [channel], [interestedOps] subscriptions
  */
-interface AsyncSelectable {
+interface AsyncSelectable : Closeable, DisposableHandle {
+    val suspensions: InterestSuspensionsMap
+
     /**
      * associated channel
      */
@@ -20,40 +22,27 @@ interface AsyncSelectable {
     val interestedOps: Int
 
     /**
-     * called by the selector when [key] is selected.
-     * It is always called from selector loop so it should work fast and should never block.
+     * Apply [state] flag of [interest] to [interestedOps]. Notice that is doesn't actually change selection key.
      */
-    fun onSelected(key: SelectionKey)
-
-    /**
-     * called by the selector when selection failed or [onSelected] handled failed.
-     * It is always called from selector loop so it should work fast and should never block.
-     */
-    fun onSelectionFailed(t: Throwable)
+    fun interestOp(interest: SelectInterest, state: Boolean)
 }
 
-internal abstract class SelectableBase : AsyncSelectable {
-    @Volatile
-    override var interestedOps: Int = 0
-        internal set
-}
+abstract class SelectableBase : AsyncSelectable {
+    private val interestedOpsAtomic = AtomicInteger(0)
 
-internal fun SelectableBase.interestOp(flag: Int, state: Boolean) {
-    interestedOps = if (state) interestedOps or flag else interestedOps and flag.inv()
-}
+    override val suspensions = InterestSuspensionsMap()
 
-internal fun <T> SelectableBase.onSelectedGeneric(key: SelectionKey, op: Int, continuation: AtomicReference<Continuation<T>?>, block: (Continuation<T>) -> Unit): Boolean {
-    if (!key.readyOp(op)) {
-        if (continuation.get() != null) {
-            interestOp(op, true)
-            return true
-        }
-    } else {
-        if (!continuation.invokeIfPresent(block)) {
-            interestedOps = 0
-            return true
+    override val interestedOps: Int
+        get() = interestedOpsAtomic.get()
+
+    override fun interestOp(interest: SelectInterest, state: Boolean) {
+        val flag = interest.flag
+
+        while (true) {
+            val before = interestedOpsAtomic.get()
+            val after = if (state) before or flag else before and flag.inv()
+            if (interestedOpsAtomic.compareAndSet(before, after)) break
         }
     }
-
-    return false
 }
+
