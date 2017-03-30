@@ -13,7 +13,7 @@ import kotlin.reflect.*
 import kotlin.test.*
 
 class ServerSocketTest {
-    private val selector = SelectorManager()
+    private val selector = ExplicitSelectorManager()
     private var client: Pair<Socket, Thread>? = null
     private var server by BlockingValue<AsyncServerSocket>()
     private var failure: Throwable? = null
@@ -68,7 +68,7 @@ class ServerSocketTest {
 
     private fun server(block: suspend (AsyncSocket) -> Unit) {
         launch(CommonPool) {
-            val server = selector.aSocket().tcp().bind(null)
+            val server = aSocket(selector).tcp().bind(null)
             this@ServerSocketTest.server = server
 
             bound.countDown()

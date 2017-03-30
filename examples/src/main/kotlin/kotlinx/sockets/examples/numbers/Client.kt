@@ -4,7 +4,6 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
-import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
 import java.util.*
@@ -16,24 +15,20 @@ fun main(args: Array<String>) {
 
 fun numbersClient(port: Int, log: Boolean): Long {
     return runBlocking(CommonPool) {
-        SelectorManager().use { selector ->
-            selector.aSocket().tcp().configure {
-                this[StandardSocketOptions.TCP_NODELAY] = true // disable Nagel's
-            }.connect(InetSocketAddress(port)).use { socket ->
-                if (log) {
-                    println("Connected")
-                }
-
-                val time = measureTimeMillis {
-                    main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
-                }
-
-                if (log) {
-                    println("time: $time ms")
-                }
-
-                time
+        aSocket().tcp().tcpNoDelay().connect(InetSocketAddress(port)).use { socket ->
+            if (log) {
+                println("Connected")
             }
+
+            val time = measureTimeMillis {
+                main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
+            }
+
+            if (log) {
+                println("time: $time ms")
+            }
+
+            time
         }
     }
 }

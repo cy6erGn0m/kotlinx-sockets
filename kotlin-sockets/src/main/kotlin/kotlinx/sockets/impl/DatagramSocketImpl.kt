@@ -33,7 +33,7 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
                 c.disposeOnCancel(this)
 
                 interestOp(SelectionKey.OP_READ, true)
-                pushInterest(selector)
+                selector.notifyInterest(this)
             }
         }
     }
@@ -53,7 +53,7 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
                 c.disposeOnCancel(this)
 
                 interestOp(SelectionKey.OP_READ, true)
-                pushInterest(selector)
+                selector.notifyInterest(this)
             }
         }
     }
@@ -71,7 +71,7 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
                 c.disposeOnCancel(this)
 
                 interestOp(SelectionKey.OP_WRITE, true)
-                pushInterest(selector)
+                selector.notifyInterest(this)
             }
         }
     }
@@ -89,7 +89,7 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
                 c.disposeOnCancel(this)
 
                 interestOp(SelectionKey.OP_WRITE, true)
-                pushInterest(selector)
+                selector.notifyInterest(this)
             }
         }
     }
@@ -103,7 +103,7 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
             onSelectedGeneric(key, SelectionKey.OP_WRITE, writeOrSendContinuation, { it.resume(Unit) })
 
         if (changed) {
-            pushInterestDirect(key)
+            key.interestOps(interestedOps)
         }
     }
 

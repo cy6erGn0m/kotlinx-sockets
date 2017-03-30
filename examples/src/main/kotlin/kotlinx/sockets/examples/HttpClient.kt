@@ -2,35 +2,32 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
-import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
 import java.nio.*
 
 fun main(args: Array<String>) {
     runBlocking {
-        SelectorManager().use { manager ->
-            manager.aSocket().tcp().connect(InetSocketAddress(InetAddress.getByName("google.com"), 80)).use {  socket ->
-                println("Connected")
+        aSocket().tcp().connect(InetSocketAddress(InetAddress.getByName("google.com"), 80)).use { socket ->
+            println("Connected")
 
-                socket.send("GET / HTTP/1.1\r\n")
-                socket.send("Host: google.com\r\n")
-                socket.send("Accept: text/html\r\n")
-                socket.send("Connection: close\r\n")
-                socket.send("\r\n")
+            socket.send("GET / HTTP/1.1\r\n")
+            socket.send("Host: google.com\r\n")
+            socket.send("Accept: text/html\r\n")
+            socket.send("Connection: close\r\n")
+            socket.send("\r\n")
 
-                val bb = ByteBuffer.allocate(8192)
-                while (true) {
-                    bb.clear()
-                    if (socket.read(bb) == -1) break
+            val bb = ByteBuffer.allocate(8192)
+            while (true) {
+                bb.clear()
+                if (socket.read(bb) == -1) break
 
-                    bb.flip()
-                    System.out.write(bb)
-                    System.out.flush()
-                }
-
-                println()
+                bb.flip()
+                System.out.write(bb)
+                System.out.flush()
             }
+
+            println()
         }
     }
 }

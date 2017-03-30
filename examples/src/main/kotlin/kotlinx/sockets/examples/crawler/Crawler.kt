@@ -10,7 +10,7 @@ import java.nio.*
 import java.util.concurrent.*
 
 fun main(args: Array<String>) {
-    SelectorManager().use { selector ->
+    ExplicitSelectorManager().use { selector ->
         runBlocking(CommonPool) {
             Crawler().run(selector)
         }

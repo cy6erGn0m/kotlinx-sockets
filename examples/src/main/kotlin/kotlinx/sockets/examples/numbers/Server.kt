@@ -4,7 +4,6 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
-import kotlinx.sockets.selector.*
 import java.net.*
 import java.util.logging.*
 
@@ -13,8 +12,7 @@ fun main(args: Array<String>) {
 }
 
 fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket {
-    val selector = SelectorManager()
-    val server = selector.aSocket().tcp().bind(port?.let(::InetSocketAddress))
+    val server = aSocket().tcp().bind(port?.let(::InetSocketAddress))
 
     launch(CommonPool) {
         onBound()
@@ -34,7 +32,6 @@ fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): AsyncServerSocket 
         }
     }.invokeOnCompletion {
         server.close()
-        selector.close()
     }
 
     return server

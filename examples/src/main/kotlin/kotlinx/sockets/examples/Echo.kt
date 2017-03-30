@@ -2,17 +2,14 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
-import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.*
 
 fun main(args: Array<String>) {
     runBlocking {
-        SelectorManager().use { selector ->
-            selector.aSocket().tcp().bind(InetSocketAddress(9094)).use { server ->
-                while (true) {
-                    runClient(server.accept())
-                }
+        aSocket().tcp().bind(InetSocketAddress(9094)).use { server ->
+            while (true) {
+                runClient(server.accept())
             }
         }
     }

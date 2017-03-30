@@ -6,18 +6,20 @@ import java.io.*
 import java.nio.channels.*
 import java.nio.channels.spi.*
 import java.util.concurrent.*
-import kotlin.coroutines.experimental.*
 
 /**
- * Represents a coroutine facade for NIO selector and socket factory. Need to be closed to release resources.
+ * A selector manager that creates selector and loop thread lazily and only disposes it on [close].
  */
-class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : AutoCloseable, java.io.Closeable {
+class ExplicitSelectorManager : Closeable, SelectorManager, DisposableHandle {
     @Volatile
     private var closed = false
-    private val selector = lazy { if (closed) throw ClosedSelectorException(); Selector.open()!! }
+
+    private val selector = lazy { if (closed) throw ClosedSelectorException(); ensureStarted(); Selector.open()!! }
     private val q = ArrayBlockingQueue<AsyncSelectable>(1000)
 
-    private val selectorJob = launch(dispatcher, false) {
+    override val provider: SelectorProvider = SelectorProvider.provider()
+
+    private val selectorJob = launch(selectorsCoroutineDispatcher, false) {
         try {
             selectorLoop(selector.value)
         } catch (expected: ClosedSelectorException) {
@@ -25,18 +27,6 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
     }.apply {
         invokeOnCompletion {
             selector.value.close()
-        }
-    }
-
-    internal inline fun <C : Closeable, R> buildOrClose(create: SelectorProvider.() -> C, setup: C.() -> R): R {
-        val result = create(selector.value.provider())
-        ensureStarted()
-
-        try {
-            return setup(result)
-        } catch (t: Throwable) {
-            result.close()
-            throw t
         }
     }
 
@@ -62,13 +52,25 @@ class SelectorManager(dispatcher: CoroutineContext = ioCoroutineDispatcher) : Au
         }
     }
 
-    internal fun registerSafe(selectable: AsyncSelectable) {
-        q.put(selectable)
+    override fun dispose() {
+        close()
+    }
+
+    override fun notifyInterest(s: AsyncSelectable) {
+        q.put(s)
         selector.value.wakeup()
     }
 
-    internal fun ensureUnregistered() {
-        selector.value.wakeup()
+    override fun notifyClosed(s: AsyncSelectable) {
+        if (selector.isInitialized()) {
+            selector.value.wakeup()
+        }
+    }
+
+    override fun notifyInterestDirect(s: AsyncSelectable) {
+        require(Thread.currentThread().threadGroup === selectorsGroup)
+
+        registerUnsafe(s)
     }
 
     private tailrec fun selectorLoop(selector: Selector) {

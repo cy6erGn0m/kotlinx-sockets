@@ -10,17 +10,17 @@ import kotlin.concurrent.*
 import kotlin.test.*
 
 class ClientSocketTest {
-    private val selector = SelectorManager()
+    private val selector = ExplicitSelectorManager()
     private var serverError: Throwable? = null
     private var server: Pair<ServerSocket, Thread>? = null
 
     @After
     fun tearDown() {
-        selector.close()
         server?.let { (server, thread) ->
             server.close()
             thread.interrupt()
         }
+        selector.close()
 
         serverError?.let { throw it }
     }
@@ -113,7 +113,7 @@ class ClientSocketTest {
 
     private fun client(block: suspend (AsyncSocket) -> Unit) {
         runBlocking {
-            selector.aSocket().tcp().connect(server!!.first.localSocketAddress).use {
+            aSocket(selector).tcp().connect(server!!.first.localSocketAddress).use {
                 block(it)
             }
         }

@@ -3,7 +3,6 @@ package kotlinx.sockets.examples
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.channels.*
-import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.*
 import java.util.concurrent.*
@@ -18,19 +17,17 @@ fun main(args: Array<String>) {
     }
 
     runBlocking {
-        SelectorManager().use { s ->
-            s.aSocket().tcp().bind(InetSocketAddress(9094)).use { server ->
-                while (true) {
-                    try {
-                        val client = server.accept()
-                        launch(CommonPool) {
-                            client.use {
-                                handleClient(client)
-                            }
+        aSocket().tcp().bind(InetSocketAddress(9094)).use { server ->
+            while (true) {
+                try {
+                    val client = server.accept()
+                    launch(CommonPool) {
+                        client.use {
+                            handleClient(client)
                         }
-                    } catch (e: Throwable) {
-                        e.printStackTrace()
                     }
+                } catch (e: Throwable) {
+                    e.printStackTrace()
                 }
             }
         }

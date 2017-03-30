@@ -5,37 +5,34 @@ import kotlinx.coroutines.experimental.channels.*
 import kotlinx.sockets.*
 import kotlinx.sockets.adapters.*
 import kotlinx.sockets.channels.*
-import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.*
 import java.util.*
 
 fun main(args: Array<String>) {
-    SelectorManager().use { selector ->
-        runBlocking {
-            val pool = runDefaultByteBufferPool()
+    runBlocking {
+        val pool = runDefaultByteBufferPool()
 
 //            val dnsServer = inet4address(198, 41, 0, 4) // root DNS server
 //            val dnsServer = inet4address(8, 8, 8, 8) // google DNS server
-            val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
-            val results = selector.resolve(pool, dnsServer, "kotlinlang.org", Type.A, tcp = true)
+        val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
+        val results = resolve(pool, dnsServer, "kotlinlang.org", Type.A, tcp = true)
 
-            if (results.answers.isNotEmpty()) {
-                println("Answers:")
-                results.answers.forEach { it.printRecord() }
-            }
+        if (results.answers.isNotEmpty()) {
+            println("Answers:")
+            results.answers.forEach { it.printRecord() }
+        }
 
-            if (results.nameServers.isNotEmpty()) {
-                println()
-                println("Name servers:")
-                results.nameServers.forEach { it.printRecord() }
-            }
+        if (results.nameServers.isNotEmpty()) {
+            println()
+            println("Name servers:")
+            results.nameServers.forEach { it.printRecord() }
+        }
 
-            if (results.additional.isNotEmpty()) {
-                println()
-                println("Additional:")
-                results.additional.forEach { it.printRecord() }
-            }
+        if (results.additional.isNotEmpty()) {
+            println()
+            println("Additional:")
+            results.additional.forEach { it.printRecord() }
         }
     }
 }
@@ -57,7 +54,7 @@ private fun inet4address(a: Int, b: Int, c: Int, d: Int): InetAddress {
     return InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte()))
 }
 
-private suspend fun SelectorManager.resolve(pool: Channel<ByteBuffer>, server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
+private suspend fun resolve(pool: Channel<ByteBuffer>, server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
     val remoteAddress = InetSocketAddress(server, 53)
     val client: ReadWriteSocket = if (tcp) {
         aSocket().tcp().tcpNoDelay().connect(remoteAddress)

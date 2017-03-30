@@ -11,7 +11,7 @@ import java.nio.*
 import kotlin.test.*
 
 class SocketChannelTest {
-    private val selector = SelectorManager()
+    private val selector = ExplicitSelectorManager()
 
     private lateinit var pool: Channel<ByteBuffer>
     private lateinit var serverSocket: AsyncServerSocket
@@ -21,7 +21,7 @@ class SocketChannelTest {
     fun setUp() {
         pool = runDefaultByteBufferPool()
 
-        serverSocket = selector.aSocket().tcp().bind(null)
+        serverSocket = aSocket(selector).tcp().bind(null)
         serverAccept = serverSocket.openAcceptChannel()
     }
 
@@ -37,7 +37,7 @@ class SocketChannelTest {
     @Test
     fun accept() {
         runBlocking {
-            selector.aSocket().tcp().connect(serverSocket.localAddress).use { }
+            aSocket(selector).tcp().connect(serverSocket.localAddress).use { }
 
             val client = serverAccept.receive()
             client.close()
@@ -63,7 +63,7 @@ class SocketChannelTest {
 
         runBlocking {
             try {
-                selector.aSocket().tcp().connect(serverSocket.localAddress).use { socket ->
+                aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
                     val receive = socket.openReceiveChannel(pool)
                     val send = socket.openSendChannel(pool)
 
@@ -102,7 +102,7 @@ class SocketChannelTest {
 
         runBlocking {
             try {
-                selector.aSocket().tcp().connect(serverSocket.localAddress).use { socket ->
+                aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
                     val receive = socket.openReceiveChannel(pool)
                     val send = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
 
@@ -125,7 +125,7 @@ class SocketChannelTest {
     @Test
     fun testTextReceive() {
         val clientJob = launch(CommonPool) {
-            selector.aSocket().tcp().connect(serverSocket.localAddress).use { socket ->
+            aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
                 val input = socket.openTextReceiveChannel(Charsets.ISO_8859_1, pool)
                 val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
 
@@ -164,7 +164,7 @@ class SocketChannelTest {
     @Test
     fun testLinesReceive() {
         val clientJob = launch(CommonPool) {
-            selector.aSocket().tcp().connect(serverSocket.localAddress).use { socket ->
+            aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
                 val input = socket.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
                 val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
 

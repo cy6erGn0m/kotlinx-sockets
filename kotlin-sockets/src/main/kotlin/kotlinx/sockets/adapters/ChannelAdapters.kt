@@ -388,8 +388,8 @@ private suspend fun <T : ASocket, S : AsyncAcceptable<T>, R> acceptorLoop(source
  * Opens channel of input addresses to connect to and a channel of connected sockets and starts processing job.
  * Every socket is configured by [configure] function before connect.
  */
-fun SelectorManager.openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}): Pair<SendChannel<SocketAddress>, ReceiveChannel<AsyncSocket>> {
-    return openConnector({ it }, { _, s -> s }, configure)
+fun openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}, selector: SelectorManager = SelectorManager.DefaultSelectorManager): Pair<SendChannel<SocketAddress>, ReceiveChannel<AsyncSocket>> {
+    return openConnector({ it }, { _, s -> s }, configure, selector)
 }
 
 /**
@@ -401,15 +401,16 @@ fun SelectorManager.openConnector(configure: Configurable<*>.(SocketAddress) -> 
  *
  * @return a pair of send and receive channels associated with the started job.
  */
-fun <A, R> SelectorManager.openConnector(inTransform: (A) -> SocketAddress,
-                                         outTransform: (A, AsyncSocket) -> R,
-                                         configure: Configurable<*>.(A) -> Unit = {}): Pair<SendChannel<A>, ReceiveChannel<R>> {
+fun <A, R> openConnector(inTransform: (A) -> SocketAddress,
+                         outTransform: (A, AsyncSocket) -> R,
+                         configure: Configurable<*>.(A) -> Unit = {},
+                         selector: SelectorManager = SelectorManager.DefaultSelectorManager): Pair<SendChannel<A>, ReceiveChannel<R>> {
 
     val source = ArrayChannel<A>(1000)
     val destination = ArrayChannel<R>(1000)
 
     launch(ioCoroutineDispatcher) {
-        connectorLoop(this@openConnector, source, destination, inTransform, outTransform, configure)
+        connectorLoop(selector, source, destination, inTransform, outTransform, configure)
     }.invokeOnCompletion { t ->
         source.close(t)
         destination.close(t)
@@ -434,7 +435,7 @@ private suspend fun <A, R> connectorLoop(selector: SelectorManager,
         runningCounter.incrementAndGet()
         launch(ioCoroutineDispatcher) {
             val address = inTransform(src)
-            val socket = selector.aSocket().tcp()
+            val socket = aSocket(selector).tcp()
             configure(socket, src)
 
             val connected = socket.connect(address)

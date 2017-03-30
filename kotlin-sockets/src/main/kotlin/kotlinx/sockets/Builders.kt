@@ -43,7 +43,7 @@ fun <T: Configurable<T>> T.tcpNoDelay(): T {
     }
 }
 
-fun SelectorManager.aSocket() = SocketBuilder(this, SocketOptions.Empty)
+fun aSocket(selector: SelectorManager = SelectorManager.DefaultSelectorManager) = SocketBuilder(selector, SocketOptions.Empty)
 
 class SocketBuilder internal constructor(val selector: SelectorManager, override var options: SocketOptions) : Configurable<SocketBuilder> {
     fun tcp() = TcpSocketBuilder(selector, options)

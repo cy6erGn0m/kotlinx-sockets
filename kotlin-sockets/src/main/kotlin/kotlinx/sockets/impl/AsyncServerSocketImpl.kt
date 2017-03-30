@@ -20,7 +20,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
 
     override fun onSelected(key: SelectionKey) {
         if (onSelectedGeneric(key, SelectionKey.OP_ACCEPT, acceptContinuation) { it.resume(null) }) {
-            pushInterestDirect(key)
+            key.interestOps(interestedOps)
         }
     }
 
@@ -40,7 +40,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
                 c.disposeOnCancel(this)
 
                 wantAccept(true)
-                pushInterest(selector)
+                selector.notifyInterest(this)
             }
         }
     }
@@ -63,7 +63,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
                 onSelectionFailed(ClosedChannelException())
             } catch (expected: CancelledKeyException) {
             } finally {
-                selector.ensureUnregistered()
+                selector.notifyClosed(this)
             }
         }
     }

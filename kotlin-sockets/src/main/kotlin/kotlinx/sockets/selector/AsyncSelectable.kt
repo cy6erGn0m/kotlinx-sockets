@@ -8,7 +8,7 @@ import kotlin.coroutines.experimental.*
 /**
  * A selectable entity with selectable NIO [channel], [interestedOps] subscriptions
  */
-internal interface AsyncSelectable {
+interface AsyncSelectable {
     /**
      * associated channel
      */
@@ -20,12 +20,14 @@ internal interface AsyncSelectable {
     val interestedOps: Int
 
     /**
-     * called by the selector when [key] is selected
+     * called by the selector when [key] is selected.
+     * It is always called from selector loop so it should work fast and should never block.
      */
     fun onSelected(key: SelectionKey)
 
     /**
-     * called by the selector when selection failed or [onSelected] handled failed
+     * called by the selector when selection failed or [onSelected] handled failed.
+     * It is always called from selector loop so it should work fast and should never block.
      */
     fun onSelectionFailed(t: Throwable)
 }
@@ -38,18 +40,6 @@ internal abstract class SelectableBase : AsyncSelectable {
 
 internal fun SelectableBase.interestOp(flag: Int, state: Boolean) {
     interestedOps = if (state) interestedOps or flag else interestedOps and flag.inv()
-}
-
-internal fun AsyncSelectable.pushInterest(selector: SelectorManager) {
-    if (interestedOps != 0) {
-        selector.registerSafe(this)
-    }
-}
-
-internal fun AsyncSelectable.pushInterestDirect(key: SelectionKey) {
-    if (interestedOps != 0) {
-        key.interestOps(interestedOps)
-    }
 }
 
 internal fun <T> SelectableBase.onSelectedGeneric(key: SelectionKey, op: Int, continuation: AtomicReference<Continuation<T>?>, block: (Continuation<T>) -> Unit): Boolean {
