@@ -7,6 +7,7 @@ import kotlinx.sockets.Socket
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
 import java.net.*
+import java.nio.channels.*
 import java.util.logging.*
 
 fun main(args: Array<String>) {
@@ -31,6 +32,9 @@ fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<ServerSocket,
                         runClient(it)
                     }
                 }
+            } catch (expected: ClosedChannelException) {
+                client?.close()
+                break
             } catch (t: Throwable) {
                 Logger.getLogger("acceptor").log(Level.SEVERE, "Failed to handle client", t)
                 client?.close()
