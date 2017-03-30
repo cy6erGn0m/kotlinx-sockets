@@ -2,9 +2,10 @@ package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import org.junit.*
-import java.net.*
+import java.net.ServerSocket
 import java.nio.*
 import kotlin.concurrent.*
 import kotlin.test.*
@@ -27,7 +28,7 @@ class ClientSocketTest {
 
     @Test
     fun testConnect() {
-        server(Socket::close)
+        server { it.close() }
 
         client {
         }
@@ -111,7 +112,7 @@ class ClientSocketTest {
         }
     }
 
-    private fun client(block: suspend (AsyncSocket) -> Unit) {
+    private fun client(block: suspend (Socket) -> Unit) {
         runBlocking {
             aSocket(selector).tcp().connect(server!!.first.localSocketAddress).use {
                 block(it)
@@ -119,8 +120,8 @@ class ClientSocketTest {
         }
     }
 
-    private fun server(block: (Socket) -> Unit) {
-        val server = ServerSocket(0)
+    private fun server(block: (java.net.Socket) -> Unit) {
+        val server = java.net.ServerSocket(0)
         val thread = thread(start = false) {
             while (true) {
                 val client = try { server.accept() } catch (t: Throwable) { break }

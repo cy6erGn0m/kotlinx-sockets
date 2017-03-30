@@ -2,6 +2,7 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import java.io.*
 import java.net.*
 import java.nio.*
@@ -39,6 +40,6 @@ private fun PrintStream.write(bb: ByteBuffer) {
     bb.position(bb.limit())
 }
 
-private suspend fun AsyncSocket.send(text: String) {
+private suspend fun Socket.send(text: String) {
     write(ByteBuffer.wrap(text.toByteArray()))
 }

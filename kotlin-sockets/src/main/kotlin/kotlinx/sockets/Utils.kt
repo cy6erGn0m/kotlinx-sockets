@@ -26,8 +26,8 @@ internal fun CancellableContinuation<*>.disposeOnCancel(disposableHandle: Dispos
     invokeOnCompletion { if (isCancelled) disposableHandle.dispose() }
 }
 
-internal var SelectionKey.subject: AsyncSelectable?
-    get() = attachment() as? AsyncSelectable
+internal var SelectionKey.subject: Selectable?
+    get() = attachment() as? Selectable
     set(newValue) {
         attach(newValue)
     }

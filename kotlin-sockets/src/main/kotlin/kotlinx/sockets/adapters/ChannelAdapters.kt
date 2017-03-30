@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
 import kotlinx.sockets.selector.*
@@ -347,7 +348,7 @@ private suspend fun writeImpl(socket: WriteChannel, pool: Channel<ByteBuffer>, b
 /**
  * Opens a channel of accepted sockets of given [capacity] and starts producer job to accept connections and populate it.
  */
-fun <T : ASocket> AsyncAcceptable<T>.openAcceptChannel(capacity: Int = 100): ProducerJob<T> {
+fun <T : ASocket> Acceptable<T>.openAcceptChannel(capacity: Int = 100): ProducerJob<T> {
     return openAcceptChannel(capacity) { it }
 }
 
@@ -355,7 +356,7 @@ fun <T : ASocket> AsyncAcceptable<T>.openAcceptChannel(capacity: Int = 100): Pro
  * Opens a channel of accepted sockets transformed by [transform] function of given [capacity] and starts producer job
  * to accept connections and populate it.
  */
-fun <T : ASocket, S : AsyncAcceptable<T>, R> S.openAcceptChannel(capacity: Int = 100, transform: S.(T) -> R): ProducerJob<R> {
+fun <T : ASocket, S : Acceptable<T>, R> S.openAcceptChannel(capacity: Int = 100, transform: S.(T) -> R): ProducerJob<R> {
     return produce(ioCoroutineDispatcher, capacity) {
         acceptorLoop(this@openAcceptChannel, this, transform)
     }
@@ -365,13 +366,13 @@ fun <T : ASocket, S : AsyncAcceptable<T>, R> S.openAcceptChannel(capacity: Int =
  * Creates a job to accept connections and put them to [destination] channel.
  * @return a job that hasn't been started yet
  */
-fun <T : ASocket, S : AsyncAcceptable<T>, R> S.acceptSocketsTo(destination: SendChannel<R>, transform: S.(T) -> R): Job {
+fun <T : ASocket, S : Acceptable<T>, R> S.acceptSocketsTo(destination: SendChannel<R>, transform: S.(T) -> R): Job {
     return launch(ioCoroutineDispatcher, start = false) {
         acceptorLoop(this@acceptSocketsTo, destination, transform)
     }
 }
 
-private suspend fun <T : ASocket, S : AsyncAcceptable<T>, R> acceptorLoop(source: S, destination: SendChannel<R>, transform: S.(T) -> R) {
+private suspend fun <T : ASocket, S : Acceptable<T>, R> acceptorLoop(source: S, destination: SendChannel<R>, transform: S.(T) -> R) {
     while (true) {
         val e = try { source.accept() } catch (e: ClosedChannelException) { break }
 
@@ -388,7 +389,7 @@ private suspend fun <T : ASocket, S : AsyncAcceptable<T>, R> acceptorLoop(source
  * Opens channel of input addresses to connect to and a channel of connected sockets and starts processing job.
  * Every socket is configured by [configure] function before connect.
  */
-fun openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}, selector: SelectorManager = SelectorManager.DefaultSelectorManager): Pair<SendChannel<SocketAddress>, ReceiveChannel<AsyncSocket>> {
+fun openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}, selector: SelectorManager = SelectorManager.DefaultSelectorManager): Pair<SendChannel<SocketAddress>, ReceiveChannel<Socket>> {
     return openConnector({ it }, { _, s -> s }, configure, selector)
 }
 
@@ -402,7 +403,7 @@ fun openConnector(configure: Configurable<*>.(SocketAddress) -> Unit = {}, selec
  * @return a pair of send and receive channels associated with the started job.
  */
 fun <A, R> openConnector(inTransform: (A) -> SocketAddress,
-                         outTransform: (A, AsyncSocket) -> R,
+                         outTransform: (A, Socket) -> R,
                          configure: Configurable<*>.(A) -> Unit = {},
                          selector: SelectorManager = SelectorManager.DefaultSelectorManager): Pair<SendChannel<A>, ReceiveChannel<R>> {
 
@@ -423,7 +424,7 @@ private suspend fun <A, R> connectorLoop(selector: SelectorManager,
                                          source: ReceiveChannel<A>,
                                          destination: SendChannel<R>,
                                          inTransform: (A) -> SocketAddress,
-                                         outTransform: (A, AsyncSocket) -> R,
+                                         outTransform: (A, Socket) -> R,
                                          configure: Configurable<*>.(A) -> Unit) {
 
     val runningCounter = AtomicLong()

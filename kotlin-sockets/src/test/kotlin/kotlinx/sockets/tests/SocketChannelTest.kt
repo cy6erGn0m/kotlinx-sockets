@@ -14,8 +14,8 @@ class SocketChannelTest {
     private val selector = ExplicitSelectorManager()
 
     private lateinit var pool: Channel<ByteBuffer>
-    private lateinit var serverSocket: AsyncServerSocket
-    private lateinit var serverAccept: ProducerJob<AsyncSocket>
+    private lateinit var serverSocket: ServerSocket
+    private lateinit var serverAccept: ProducerJob<Socket>
 
     @Before
     fun setUp() {

@@ -4,7 +4,6 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import org.junit.*
-import java.net.*
 import java.nio.*
 import java.util.concurrent.*
 import kotlin.concurrent.*
@@ -14,8 +13,8 @@ import kotlin.test.*
 
 class ServerSocketTest {
     private val selector = ExplicitSelectorManager()
-    private var client: Pair<Socket, Thread>? = null
-    private var server by BlockingValue<AsyncServerSocket>()
+    private var client: Pair<java.net.Socket, Thread>? = null
+    private var server by BlockingValue<ServerSocket>()
     private var failure: Throwable? = null
     private val bound = CountDownLatch(1)
 
@@ -66,7 +65,7 @@ class ServerSocketTest {
         }
     }
 
-    private fun server(block: suspend (AsyncSocket) -> Unit) {
+    private fun server(block: suspend (Socket) -> Unit) {
         launch(CommonPool) {
             val server = aSocket(selector).tcp().bind(null)
             this@ServerSocketTest.server = server
@@ -85,9 +84,9 @@ class ServerSocketTest {
         }
     }
 
-    private fun client(block: (Socket) -> Unit) {
+    private fun client(block: (java.net.Socket) -> Unit) {
         bound.await()
-        val client = Socket().apply { connect(server.localAddress) }
+        val client = java.net.Socket().apply { connect(server.localAddress) }
 
         val thread = thread(start = false) {
             try {

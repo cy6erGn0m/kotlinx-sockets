@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.*
 /**
  * A selectable entity with selectable NIO [channel], [interestedOps] subscriptions
  */
-interface AsyncSelectable : Closeable, DisposableHandle {
+interface Selectable : Closeable, DisposableHandle {
     val suspensions: InterestSuspensionsMap
 
     /**
@@ -27,7 +27,7 @@ interface AsyncSelectable : Closeable, DisposableHandle {
     fun interestOp(interest: SelectInterest, state: Boolean)
 }
 
-abstract class SelectableBase : AsyncSelectable {
+abstract class SelectableBase : Selectable {
     private val interestedOpsAtomic = AtomicInteger(0)
 
     override val suspensions = InterestSuspensionsMap()

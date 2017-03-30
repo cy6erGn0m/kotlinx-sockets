@@ -8,7 +8,7 @@ import java.nio.channels.spi.*
 abstract class SelectorManagerSupport internal constructor() : SelectorManager {
     final override val provider: SelectorProvider = SelectorProvider.provider()
 
-    protected suspend fun select(selector: Selector, s: AsyncSelectable, op: SelectInterest, interest: (AsyncSelectable) -> Unit) {
+    protected suspend fun select(selector: Selector, s: Selectable, op: SelectInterest, interest: (Selectable) -> Unit) {
         require(s.interestedOps and op.flag != 0)
 
         val key = s.channel.keyFor(selector)
@@ -83,7 +83,7 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         }
     }
 
-    protected fun applyInterest(selector: Selector, attachment: AsyncSelectable) {
+    protected fun applyInterest(selector: Selector, attachment: Selectable) {
         val channel = attachment.channel
 
         val existingKey = channel.keyFor(selector)
@@ -117,14 +117,14 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         }
     }
 
-    protected fun notifyClosedImpl(selector: Selector, key: SelectionKey, attachment: AsyncSelectable) {
+    protected fun notifyClosedImpl(selector: Selector, key: SelectionKey, attachment: Selectable) {
         cancelAllSuspensions(attachment, ClosedChannelException())
 
         key.subject = null
         selector.wakeup()
     }
 
-    protected fun cancelAllSuspensions(attachment: AsyncSelectable, t: Throwable) {
+    protected fun cancelAllSuspensions(attachment: Selectable, t: Throwable) {
         attachment.suspensions.invokeForEachPresent { _ ->
             try {
                 resumeWithException(t)

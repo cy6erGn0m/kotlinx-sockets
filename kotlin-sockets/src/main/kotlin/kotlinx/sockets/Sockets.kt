@@ -34,7 +34,7 @@ interface ABoundSocket {
 /**
  * Represents a socket source, for example server socket
  */
-interface AsyncAcceptable<out S : ASocket> : ASocket {
+interface Acceptable<out S : ASocket> : ASocket {
     /**
      * accepts socket connection or suspends if none yet available.
      * @return accepted socket
@@ -44,11 +44,11 @@ interface AsyncAcceptable<out S : ASocket> : ASocket {
 
 interface ReadWriteSocket : ASocket, ReadWriteChannel
 
-interface AsyncSocket : ReadWriteSocket, ABoundSocket, AConnectedSocket
+interface Socket : ReadWriteSocket, ABoundSocket, AConnectedSocket
 
-interface AsyncServerSocket : ASocket, ABoundSocket, AsyncAcceptable<AsyncSocket>
+interface ServerSocket : ASocket, ABoundSocket, Acceptable<Socket>
 
-interface AsyncBoundDatagramSocket : ASocket, ABoundSocket, ReadChannel, DatagramReadWriteChannel
+interface BoundDatagramSocket : ASocket, ABoundSocket, ReadChannel, DatagramReadWriteChannel
 
-interface AsyncConnectedDatagramSocket : ASocket, ABoundSocket, AConnectedSocket, ReadWriteSocket, DatagramReadWriteChannel
+interface ConnectedDatagramSocket : ASocket, ABoundSocket, AConnectedSocket, ReadWriteSocket, DatagramReadWriteChannel
 

@@ -3,6 +3,7 @@ package kotlinx.sockets.examples.crawler
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
@@ -102,7 +103,7 @@ class Crawler {
 fun Connection.outputFile() = File("target/dl/", url.path + (if (url.path.endsWith("/") || url.path.isEmpty()) "index" else "") + ".html")
 
 class ConnectionRequest(val url: String, val depth: Int)
-class Connection(val url: URL, val socket: AsyncSocket, val depth: Int) {
+class Connection(val url: URL, val socket: Socket, val depth: Int) {
     var attachment: Any? = null
 
     fun close() {

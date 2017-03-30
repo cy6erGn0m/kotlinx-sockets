@@ -1,12 +1,12 @@
 package kotlinx.sockets.impl
 
-import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.*
 import java.nio.channels.*
 
-internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), AsyncSocket {
+internal class SocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), Socket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
@@ -17,7 +17,7 @@ internal class AsyncSocketImpl<out S : SocketChannel>(override val channel: S, v
     override val remoteAddress: SocketAddress
         get() = channel.remoteAddress
 
-    internal suspend fun connect(target: SocketAddress): AsyncSocket {
+    internal suspend fun connect(target: SocketAddress): Socket {
         if (channel.connect(target)) return this
 
         wantConnect(true)

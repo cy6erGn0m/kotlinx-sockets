@@ -13,7 +13,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
     @Volatile
     private var closed = false
     private val selector = lazy { ensureStarted(); Selector.open()!! }
-    private val interestQueue = ArrayBlockingQueue<AsyncSelectable>(1000)
+    private val interestQueue = ArrayBlockingQueue<Selectable>(1000)
 
     private val selectorJob = launch(selectorsCoroutineDispatcher, false) {
         try {
@@ -52,7 +52,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
         close()
     }
 
-    override fun notifyClosed(s: AsyncSelectable) {
+    override fun notifyClosed(s: Selectable) {
         if (selector.isInitialized()) {
             s.channel.keyFor(selector.value)?.let { key ->
                 key.subject?.let { attachment ->
@@ -65,7 +65,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
         }
     }
 
-    suspend override fun select(selectable: AsyncSelectable, interest: SelectInterest) {
+    suspend override fun select(selectable: Selectable, interest: SelectInterest) {
         select(selector.value, selectable, interest, { interestQueue.put(it) })
     }
 

@@ -2,6 +2,7 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import java.net.*
 import java.nio.*
 
@@ -15,7 +16,7 @@ fun main(args: Array<String>) {
     }
 }
 
-private fun runClient(client: AsyncSocket) {
+private fun runClient(client: Socket) {
     launch(CommonPool) {
         client.use {
             val bb = ByteBuffer.allocateDirect(8192)

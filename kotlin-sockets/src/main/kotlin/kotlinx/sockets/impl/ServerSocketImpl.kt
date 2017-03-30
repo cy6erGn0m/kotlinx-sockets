@@ -1,11 +1,12 @@
 package kotlinx.sockets.impl
 
-import kotlinx.sockets.*
+import kotlinx.sockets.ServerSocket
+import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : AsyncServerSocket, SelectableBase() {
+internal class ServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : ServerSocket, SelectableBase() {
     init {
         require(!channel.isBlocking)
     }
@@ -13,7 +14,7 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
     override val localAddress: SocketAddress
         get() = channel.localAddress
 
-    suspend override fun accept(): AsyncSocket {
+    suspend override fun accept(): Socket {
         while (true) {
             channel.accept()?.let { return accepted(it) }
 
@@ -22,10 +23,10 @@ internal class AsyncServerSocketImpl(override val channel: ServerSocketChannel, 
         }
     }
 
-    private fun accepted(nioChannel: SocketChannel): AsyncSocket {
+    private fun accepted(nioChannel: SocketChannel): Socket {
         interestOp(SelectInterest.ACCEPT, false)
         nioChannel.configureBlocking(false)
-        return AsyncSocketImpl(nioChannel, selector)
+        return SocketImpl(nioChannel, selector)
     }
 
     override fun close() {

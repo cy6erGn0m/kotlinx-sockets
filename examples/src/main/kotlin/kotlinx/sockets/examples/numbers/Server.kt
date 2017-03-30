@@ -2,6 +2,8 @@ package kotlinx.sockets.examples.numbers
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.ServerSocket
+import kotlinx.sockets.Socket
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
 import java.net.*
@@ -15,13 +17,13 @@ fun main(args: Array<String>) {
     }
 }
 
-fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<AsyncServerSocket, Job> {
+fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<ServerSocket, Job> {
     val server = aSocket().tcp().bind(port?.let(::InetSocketAddress))
 
     val serverJob = launch(CommonPool) {
         onBound()
         while (true) {
-            var client: AsyncSocket? = null
+            var client: Socket? = null
             try {
                 client = server.accept()
                 launch(CommonPool) {
@@ -43,7 +45,7 @@ fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<AsyncServerSo
     return Pair(server, serverJob)
 }
 
-private suspend fun runClient(client: AsyncSocket) {
+private suspend fun runClient(client: Socket) {
     val input = client.asCharChannel().buffered()
     val output = client.asCharWriteChannel()
     val logger = Logger.getLogger("client")

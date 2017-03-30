@@ -13,7 +13,7 @@ interface SelectorManager {
     /**
      * Notifies the selector that selectable has been closed.
      */
-    fun notifyClosed(s: AsyncSelectable)
+    fun notifyClosed(s: Selectable)
 
     /**
      * Suspends until [interest] is selected for [selectable]
@@ -24,7 +24,7 @@ interface SelectorManager {
      * In other words you can select for read and write at the same time but should never
      * try to read twice for the same selectable.
      */
-    suspend fun select(selectable: AsyncSelectable, interest: SelectInterest)
+    suspend fun select(selectable: Selectable, interest: SelectInterest)
 
     companion object {
         val DefaultSelectorManager = OnDemandSelectorManager()

@@ -1,7 +1,7 @@
 package kotlinx.sockets.benchmarks
 
 import io.netty.channel.*
-import kotlinx.sockets.*
+import kotlinx.sockets.ServerSocket
 import kotlinx.sockets.examples.numbers.*
 import org.openjdk.jmh.annotations.*
 import java.net.*
@@ -9,16 +9,17 @@ import java.util.concurrent.*
 
 @State(Scope.Benchmark)
 open class NumbersClientBenchmark {
-    private lateinit var server: AsyncServerSocket
+    private lateinit var server: ServerSocket
     private lateinit var nettyServer: Channel
 
     @Setup
     fun setup() {
         val l = CountDownLatch(1)
-        server = startNumbersServer(null) { l.countDown(); }.apply {
-            l.await()
-            println("server port ${(this.localAddress as InetSocketAddress).port}")
-        }
+        val (s, _) = startNumbersServer(null) { l.countDown(); }
+        l.await()
+        println("server port ${(s.localAddress as InetSocketAddress).port}")
+
+        server = s
 
         nettyServer = NettyNumbersServer.start(null, false)
     }

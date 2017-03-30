@@ -6,7 +6,7 @@ import java.net.*
 import java.nio.*
 import java.nio.channels.*
 
-internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : AsyncBoundDatagramSocket, AsyncConnectedDatagramSocket, SelectableBase() {
+internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : BoundDatagramSocket, ConnectedDatagramSocket, SelectableBase() {
 
     override val localAddress: SocketAddress
         get() = channel.localAddress ?: throw IllegalStateException("Channel is not yet bound")

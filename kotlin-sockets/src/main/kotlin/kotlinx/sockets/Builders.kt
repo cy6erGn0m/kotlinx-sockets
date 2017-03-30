@@ -2,6 +2,7 @@ package kotlinx.sockets
 
 import kotlinx.sockets.impl.*
 import kotlinx.sockets.impl.DatagramSocketImpl
+import kotlinx.sockets.impl.SocketImpl
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
@@ -51,23 +52,23 @@ class SocketBuilder internal constructor(val selector: SelectorManager, override
 }
 
 class TcpSocketBuilder internal constructor(val selector: SelectorManager, override var options: SocketOptions) : Configurable<TcpSocketBuilder> {
-    suspend fun connect(remoteAddress: SocketAddress): AsyncSocket {
+    suspend fun connect(remoteAddress: SocketAddress): Socket {
         return selector.buildOrClose({ openSocketChannel() }) {
             assignOptions(options)
             nonBlocking()
 
-            AsyncSocketImpl(this, selector).apply {
+            SocketImpl(this, selector).apply {
                 connect(remoteAddress)
             }
         }
     }
 
-    fun bind(localAddress: SocketAddress? = null): AsyncServerSocket {
+    fun bind(localAddress: SocketAddress? = null): ServerSocket {
         return selector.buildOrClose({ openServerSocketChannel() }) {
             assignOptions(options)
             nonBlocking()
 
-            AsyncServerSocketImpl(this, selector).apply {
+            ServerSocketImpl(this, selector).apply {
                 channel.bind(localAddress)
             }
         }
@@ -75,7 +76,7 @@ class TcpSocketBuilder internal constructor(val selector: SelectorManager, overr
 }
 
 class UDPSocketBuilder internal constructor(val selector: SelectorManager, override var options: SocketOptions) : Configurable<UDPSocketBuilder> {
-    fun bind(localAddress: SocketAddress? = null): AsyncBoundDatagramSocket {
+    fun bind(localAddress: SocketAddress? = null): BoundDatagramSocket {
         return selector.buildOrClose({ openDatagramChannel() }) {
             assignOptions(options)
             nonBlocking()
@@ -86,7 +87,7 @@ class UDPSocketBuilder internal constructor(val selector: SelectorManager, overr
         }
     }
 
-    fun connect(remoteAddress: SocketAddress, localAddress: SocketAddress? = null): AsyncConnectedDatagramSocket {
+    fun connect(remoteAddress: SocketAddress, localAddress: SocketAddress? = null): ConnectedDatagramSocket {
         return selector.buildOrClose({ openDatagramChannel() }) {
             assignOptions(options)
             nonBlocking()

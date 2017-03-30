@@ -2,6 +2,7 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import java.net.*
 import java.nio.*
 import kotlin.system.*
@@ -47,7 +48,7 @@ fun main(args: Array<String>) {
     }
 }
 
-private suspend fun processCommand(line: String, socket: AsyncSocket) {
+private suspend fun processCommand(line: String, socket: Socket) {
     when {
         line.startsWith("exit") -> {
             println("Got exit")
@@ -64,6 +65,6 @@ private suspend fun processCommand(line: String, socket: AsyncSocket) {
     }
 }
 
-private suspend fun AsyncSocket.respond(text: String) {
+private suspend fun Socket.respond(text: String) {
     write(ByteBuffer.wrap(text.toByteArray()))
 }

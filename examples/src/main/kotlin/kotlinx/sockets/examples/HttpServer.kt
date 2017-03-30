@@ -2,6 +2,7 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
+import kotlinx.sockets.Socket
 import kotlinx.sockets.channels.*
 import java.net.*
 import java.nio.*
@@ -34,7 +35,7 @@ fun main(args: Array<String>) {
     }
 }
 
-private suspend fun handleClient(client: AsyncSocket) {
+private suspend fun handleClient(client: Socket) {
     val bb = bufferPool.poll() ?: ByteBuffer.allocate(bufferSize)
 
     try {

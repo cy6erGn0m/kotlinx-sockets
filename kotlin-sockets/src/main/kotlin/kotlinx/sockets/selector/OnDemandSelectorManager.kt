@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.*
 class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit = TimeUnit.SECONDS) : Closeable, SelectorManagerSupport() {
     @Volatile
     private var closed = false
-    private val interestQueue = ArrayBlockingQueue<AsyncSelectable>(1000)
+    private val interestQueue = ArrayBlockingQueue<Selectable>(1000)
     private val currentSelector = AtomicReference<Selector?>()
 
     override fun close() {
@@ -28,7 +28,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
         }
     }
 
-    suspend override fun select(selectable: AsyncSelectable, interest: SelectInterest) {
+    suspend override fun select(selectable: Selectable, interest: SelectInterest) {
         require(selectable !== Poison)
 
         var selector = currentSelector.get()
@@ -45,7 +45,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
         withSelector { wakeup() }
     }
 
-    override fun notifyClosed(s: AsyncSelectable) {
+    override fun notifyClosed(s: Selectable) {
         withSelector(false) {
             s.channel.keyFor(this)?.subject = null
             wakeup()
@@ -134,7 +134,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
     }
 
     companion object {
-        private val Poison = object : AsyncSelectable {
+        private val Poison = object : Selectable {
             override val suspensions: InterestSuspensionsMap
                 get() = throw UnsupportedOperationException()
 
