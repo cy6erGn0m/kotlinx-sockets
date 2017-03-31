@@ -3,26 +3,30 @@ package kotlinx.sockets
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
-import java.util.concurrent.*
 
-fun runDefaultByteBufferPool(capacity: Int = 1000): Channel<ByteBuffer> {
-    return runDefaultByteBufferPool(ArrayChannel<ByteBuffer>(capacity))
+fun runDefaultByteBufferPool(capacity: Int = 1000, size: Int = 8192): Channel<ByteBuffer> {
+    return PoolChannel(capacity) { ByteBuffer.allocate(size) }.apply { fill() }
 }
 
-fun runDefaultByteBufferPool(pool: Channel<ByteBuffer>): Channel<ByteBuffer> {
-    launch(CommonPool) {
-        while (true) { // initial fill
-            if (!pool.offer(ByteBuffer.allocate(8192))) break
-        }
+private class PoolChannel(capacity: Int, val allocate: () -> ByteBuffer) : ArrayChannel<ByteBuffer>(capacity) {
+    override fun onEnqueuedReceive() {
+        super.onEnqueuedReceive()
 
-        while (true) {
-            delay(10L, TimeUnit.SECONDS)
-
-            while (true) { // add more
-                if (!pool.offer(ByteBuffer.allocate(8192))) break
-            }
+        if (offer(allocate())) {
+            fill()
         }
     }
 
-    return pool
+    fun fill() {
+        if (!isClosedForSend) {
+            launch(CommonPool) {
+                try {
+                    while (true) {
+                        if (!offer(allocate())) break
+                    }
+                } catch (expected: ClosedSendChannelException) {
+                }
+            }
+        }
+    }
 }
