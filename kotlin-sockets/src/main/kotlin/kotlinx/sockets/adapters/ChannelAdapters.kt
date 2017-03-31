@@ -374,7 +374,7 @@ fun <T : ASocket, S : Acceptable<T>, R> S.acceptSocketsTo(destination: SendChann
 
 private suspend fun <T : ASocket, S : Acceptable<T>, R> acceptorLoop(source: S, destination: SendChannel<R>, transform: S.(T) -> R) {
     while (true) {
-        val e = try { source.accept() } catch (e: ClosedChannelException) { break }
+        val e = try { source.accept() } catch (e: ClosedChannelException) { break } catch (e: CancelledKeyException) { break }
 
         try {
             destination.send(transform(source, e))
