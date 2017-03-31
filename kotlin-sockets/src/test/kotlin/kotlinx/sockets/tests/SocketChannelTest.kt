@@ -29,9 +29,10 @@ class SocketChannelTest {
     fun tearDown() {
         pool.close()
 
-        serverAccept.cancel()
         serverSocket.close()
         selector.close()
+
+        serverAccept.cancel()
     }
 
     @Test
@@ -79,6 +80,7 @@ class SocketChannelTest {
                 }
             } finally {
                 server.join()
+                server.invokeOnCompletion { it?.let { throw it } }
             }
         }
     }
@@ -170,11 +172,11 @@ class SocketChannelTest {
 
                 try {
                     output.send("abc")
-                    output.send("\ndef\n123")
+                    output.send("\ndef\n123\n")
 
-                    assertEquals("ABC", input.receive())
-                    assertEquals("DEF", input.receive())
-                    assertEquals("123", input.receive())
+                    assertEquals("ABC", input.receiveOrNull())
+                    assertEquals("DEF", input.receiveOrNull())
+                    assertEquals("123", input.receiveOrNull())
                 } finally {
                     output.close()
                 }
@@ -189,11 +191,11 @@ class SocketChannelTest {
                 try {
                     while (true) {
                         val line = select<String?> {
-                            input.onReceiveOrNull { null }
+                            input.onReceiveOrNull { it }
                             clientJob.onJoin { null }
                         } ?: break
 
-                        output.send(line.toUpperCase())
+                        output.send(line.toUpperCase() + "\n")
                     }
                 } finally {
                     output.close()
@@ -204,6 +206,9 @@ class SocketChannelTest {
         runBlocking {
             clientJob.join()
             server.join()
+
+            server.invokeOnCompletion { it?.let { throw it } }
+            clientJob.invokeOnCompletion { it?.let { throw it } }
         }
     }
 }
