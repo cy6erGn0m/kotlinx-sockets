@@ -15,7 +15,7 @@ fun main(args: Array<String>) {
 
 fun numbersClient(port: Int, log: Boolean): Long {
     return runBlocking(CommonPool) {
-        aSocket().tcp().tcpNoDelay().connect(InetSocketAddress(port)).use { socket ->
+        aSocket().tcp().tcpNoDelay().configure { this[StandardSocketOptions.SO_LINGER] = 1 }.connect(InetSocketAddress(port)).use { socket ->
             if (log) {
                 println("Connected")
             }

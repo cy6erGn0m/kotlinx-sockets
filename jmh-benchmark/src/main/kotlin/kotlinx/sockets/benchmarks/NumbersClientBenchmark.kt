@@ -1,6 +1,7 @@
 package kotlinx.sockets.benchmarks
 
 import io.netty.channel.*
+import io.netty.channel.nio.*
 import kotlinx.sockets.ServerSocket
 import kotlinx.sockets.examples.numbers.*
 import org.openjdk.jmh.annotations.*
@@ -11,6 +12,7 @@ import java.util.concurrent.*
 open class NumbersClientBenchmark {
     private lateinit var server: ServerSocket
     private lateinit var nettyServer: Channel
+    private lateinit var nettyGroup: NioEventLoopGroup
 
     @Setup
     fun setup() {
@@ -21,6 +23,7 @@ open class NumbersClientBenchmark {
 
         server = s
 
+        nettyGroup = NioEventLoopGroup()
         nettyServer = NettyNumbersServer.start(null, false)
     }
 
@@ -29,7 +32,11 @@ open class NumbersClientBenchmark {
         try {
             server.close()
         } finally {
-            nettyServer.close()
+            try {
+                nettyServer.close()
+            } finally {
+                nettyGroup.shutdownGracefully()
+            }
         }
     }
 
@@ -37,7 +44,7 @@ open class NumbersClientBenchmark {
     fun testKotlin() = numbersClient((server.localAddress as InetSocketAddress).port, false)
 
     @Benchmark
-    fun testNetty() = NettyNumbersClient.start((nettyServer.localAddress() as InetSocketAddress).port, false).closeFuture().sync()!!
+    fun testNetty() = NettyNumbersClient.start(nettyGroup, (nettyServer.localAddress() as InetSocketAddress).port, false).closeFuture().sync()!!
 }
 
 fun main(args: Array<String>) {

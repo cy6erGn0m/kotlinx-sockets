@@ -126,6 +126,7 @@ class NettyNumbersServer {
 
         public override fun initChannel(ch: SocketChannel) {
             val pipeline = ch.pipeline()
+            ch.config().soLinger = 0
 
             pipeline.addLast(LineBasedFrameDecoder(65536))
             pipeline.addLast(StringDecoder(Charsets.UTF_8))
@@ -280,6 +281,7 @@ class NettyNumbersClient {
 
     class NumbersClientInitializer(val log: Boolean) : ChannelInitializer<SocketChannel>() {
         override fun initChannel(ch: SocketChannel) {
+            ch.config().soLinger = 1
             ch.pipeline().apply {
                 addLast(LineBasedFrameDecoder(65536))
                 addLast(StringDecoder(Charsets.UTF_8))
@@ -293,7 +295,15 @@ class NettyNumbersClient {
     companion object {
         fun start(port: Int, log: Boolean): Channel {
             val group = NioEventLoopGroup()
+            val ch = start(group, port, log)
+            ch.closeFuture().addListener {
+                group.shutdownGracefully()
+            }
 
+            return ch
+        }
+
+        fun start(group: EventLoopGroup, port: Int, log: Boolean): Channel {
             val b = Bootstrap()
             b.group(group)
                     .channel(NioSocketChannel::class.java)
@@ -301,17 +311,14 @@ class NettyNumbersClient {
 
             val f = b.connect("localhost", port).sync()
             f.channel().writeAndFlush("HELLO")
-            val channel = f.channel()
-            channel.closeFuture().addListener {
-                group.shutdownGracefully()
-            }
-
-            return channel
+            return f.channel()
         }
 
         @JvmStatic
         fun main(args: Array<String>) {
-            start(9096, true).closeFuture().sync()
+            val ch = start(9096, true)
+            ch.closeFuture().sync()
+            ch.close()
         }
     }
 }
