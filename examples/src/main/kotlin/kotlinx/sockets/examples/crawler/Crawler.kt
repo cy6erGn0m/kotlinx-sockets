@@ -7,7 +7,6 @@ import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
-import java.nio.*
 import java.util.concurrent.*
 
 fun main(args: Array<String>) {
@@ -22,7 +21,7 @@ class Crawler {
     val visited = ConcurrentHashMap<String, Boolean>(100000)
 
     val urls = ArrayChannel<ConnectionRequest>(1024)
-    private val pool = ArrayChannel<ByteBuffer>(10000)
+    private val pool = runDefaultByteBufferPool(10000)
     private val connections = ArrayChannel<Connection>(1000)
     private val parse = ArrayChannel<Connection>(1000)
 
@@ -33,8 +32,6 @@ class Crawler {
     suspend fun run(selector: SelectorManager) {
         val initialUrls = listOf("http://kotlinlang.org/")
         initialUrls.forEach { urls.send(ConnectionRequest(it, 0)) }
-
-        runDefaultByteBufferPool(pool)
 
         launch(CommonPool) {
             parser.parseLoop()
