@@ -108,9 +108,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
 
                 applyInterest(selector, e)
             } else if (preselected > 0 || hasInterestToProcess || selector.select() > 0) {
-                selector.selectedKeys().forEach {
-                    tryHandleSelectedKey(selector, it)
-                }
+                selector.selectedKeys().forEach { handleSelectedKey(it) }
                 selector.selectedKeys().clear()
             }
 

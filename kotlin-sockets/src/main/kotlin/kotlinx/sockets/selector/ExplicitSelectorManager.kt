@@ -76,7 +76,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
                 val key = keys.next()
                 keys.remove()
 
-                tryHandleSelectedKey(selector, key)
+                handleSelectedKey(key)
             }
         }
 

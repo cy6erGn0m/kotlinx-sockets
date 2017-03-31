@@ -33,52 +33,32 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         }
     }
 
-    protected fun tryHandleSelectedKey(selector: Selector, key: SelectionKey) {
+    protected fun handleSelectedKey(key: SelectionKey) {
         try {
-            handleSelectedKey(selector, key, null)
-        } catch (t: Throwable) { // key cancelled or rejected execution
-            try {
-                handleSelectedKey(selector, key, t)
-            } catch (t2: Throwable) {
-                t.printStackTrace()
-                t2.printStackTrace()
-            }
-        }
-    }
+            val readyOps = key.readyOps()
+            val interestOps = key.interestOps()
 
-    protected fun handleSelectedKey(selector: Selector, key: SelectionKey, t: Throwable?) {
-        val readyOps = key.readyOps()
-        var newOps = try {
-            key.interestOps()
-        } catch (k: CancelledKeyException) {
-            0
-        }
-        var changed = false
-
-        val subj = key.subject
-        if (subj == null) {
-            key.cancel()
-        } else {
-            for (i in SelectInterest.values()) {
-                if (i.flag and readyOps != 0) {
-                    newOps = newOps and i.flag.inv()
-                    changed = true
-
-                    try {
-                        subj.suspensions.invokeIfPresent(i) { if (t != null) resumeWithException(t) else resume(Unit) }
-                    } catch (t: Throwable) { // rejected?
-                        t.printStackTrace()
-                        key.cancel()
+            val subj = key.subject
+            if (subj == null) {
+                key.cancel()
+            } else {
+                for (i in SelectInterest.values()) {
+                    if (i.flag and readyOps != 0) {
+                        subj.suspensions.invokeIfPresent(i) { resume(Unit) }
                     }
                 }
-            }
-        }
 
-        if (changed && subj != null) {
-            try {
-                key.interestOps(newOps)
-            } catch (ignore: Throwable) {
-                notifyClosedImpl(selector, key, subj)
+                val newOps = interestOps and readyOps.inv()
+                if (newOps != interestOps) {
+                    key.interestOps(newOps)
+                }
+            }
+        } catch (t: Throwable) {
+            // cancelled or rejected?
+            key.cancel()
+            key.subject?.let { subj ->
+                cancelAllSuspensions(subj, t)
+                key.subject = null
             }
         }
     }
@@ -99,20 +79,10 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
             existingKey.cancel()
             notifyClosedImpl(selector, existingKey, attachment)
         } else {
-            if (existingAttachment !== attachment) {
-                attachment.suspensions.invokeForEachPresent { interest ->
-                    try {
-                        existingAttachment.suspensions.addSuspension(interest, this)
-                    } catch (t: Throwable) {
-                        resumeWithException(t)
-                    }
-                }
-            }
-
             try {
                 existingKey.interestOps(attachment.interestedOps)
             } catch (t: Throwable) {
-                cancelAllSuspensions(existingAttachment, t)
+                cancelAllSuspensions(attachment, t)
             }
         }
     }
