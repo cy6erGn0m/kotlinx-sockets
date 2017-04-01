@@ -1,4 +1,4 @@
-# kotlinx sockets (🥚🥚🥚 incubating)
+# kotlinx sockets (🥚🥚🥚 incubating) [ ![status](https://img.shields.io/teamcity/http/teamcity.jetbrains.com/s/KotlinTools_KotlinxSockets_Build.svg) ](https://teamcity.jetbrains.com/guestAuth/viewType.html?buildTypeId=KotlinTools_KotlinxSockets_Build)
 
 Kotlinx.sockets is a library to bring rich coroutines experience to NIO sockets, eliminate terrible callbacks and selector loops and related difficult code.
   
