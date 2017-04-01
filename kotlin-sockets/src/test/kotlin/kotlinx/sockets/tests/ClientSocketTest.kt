@@ -5,8 +5,10 @@ import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import org.junit.*
+import org.junit.rules.*
 import java.net.ServerSocket
 import java.nio.*
+import java.util.concurrent.*
 import kotlin.concurrent.*
 import kotlin.test.*
 
@@ -14,6 +16,9 @@ class ClientSocketTest {
     private val selector = ExplicitSelectorManager()
     private var serverError: Throwable? = null
     private var server: Pair<ServerSocket, Thread>? = null
+
+    @get:Rule
+    val timeout = Timeout(15L, TimeUnit.SECONDS)
 
     @After
     fun tearDown() {

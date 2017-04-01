@@ -4,14 +4,19 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.channels.*
 import kotlinx.sockets.channels.impl.*
 import org.junit.*
+import org.junit.rules.*
 import java.nio.*
 import java.nio.channels.*
+import java.util.concurrent.*
 import kotlin.test.*
 
 class CharChannelTest {
     companion object {
         val EmptyBuffer = CharBuffer.allocate(0)!!
     }
+
+    @get:Rule
+    val timeout = Timeout(15L, TimeUnit.SECONDS)
 
     @Test
     fun charReadChannel() {

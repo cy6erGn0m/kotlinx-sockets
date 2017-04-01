@@ -7,7 +7,9 @@ import kotlinx.sockets.*
 import kotlinx.sockets.adapters.*
 import kotlinx.sockets.selector.*
 import org.junit.*
+import org.junit.rules.*
 import java.nio.*
+import java.util.concurrent.*
 import kotlin.test.*
 
 class SocketChannelTest {
@@ -16,6 +18,9 @@ class SocketChannelTest {
     private lateinit var pool: Channel<ByteBuffer>
     private lateinit var serverSocket: ServerSocket
     private lateinit var serverAccept: ProducerJob<Socket>
+
+    @get:Rule
+    val timeout = Timeout(15L, TimeUnit.SECONDS)
 
     @Before
     fun setUp() {

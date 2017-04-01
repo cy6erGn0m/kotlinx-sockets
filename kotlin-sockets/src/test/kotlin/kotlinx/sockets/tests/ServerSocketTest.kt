@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import org.junit.*
+import org.junit.rules.*
 import java.nio.*
 import java.util.concurrent.*
 import kotlin.concurrent.*
@@ -17,6 +18,9 @@ class ServerSocketTest {
     private var server by BlockingValue<ServerSocket>()
     private var failure: Throwable? = null
     private val bound = CountDownLatch(1)
+
+    @get:Rule
+    val timeout = Timeout(15L, TimeUnit.SECONDS)
 
     @After
     fun tearDown() {
