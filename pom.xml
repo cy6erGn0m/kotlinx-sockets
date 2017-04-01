@@ -112,6 +112,7 @@
 
                 <configuration>
                     <allowTimestampedSnapshots>true</allowTimestampedSnapshots>
+                    <tagNameFormat>@{project.version}</tagNameFormat>
                 </configuration>
             </plugin>
             <plugin>
