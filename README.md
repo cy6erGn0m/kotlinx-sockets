@@ -1,4 +1,4 @@
-# kotlinx sockets (🥚🥚🥚 incubating) [ ![status](https://img.shields.io/teamcity/http/teamcity.jetbrains.com/s/KotlinTools_KotlinxSockets_Build.svg) ](https://teamcity.jetbrains.com/guestAuth/viewType.html?buildTypeId=KotlinTools_KotlinxSockets_Build)  [ ![Download](https://api.bintray.com/packages/kotlin/kotlin-dev/kotlinx.sockets/images/download.svg) ](https://bintray.com/kotlin/kotlin-dev/kotlinx.sockets/_latestVersion)
+# kotlinx sockets (🥚🥚🥚 incubating) [ ![status](https://img.shields.io/teamcity/http/teamcity.jetbrains.com/s/KotlinTools_KotlinxSockets_Build.svg) ](https://teamcity.jetbrains.com/guestAuth/viewType.html?buildTypeId=KotlinTools_KotlinxSockets_Build)  [ ![Download](https://api.bintray.com/packages/kotlin/kotlin-dev/kotlinx.sockets/images/download.svg) ](https://bintray.com/kotlin/kotlin-dev/kotlinx.sockets/_latestVersion) [ ![version](https://img.shields.io/badge/kotlin-1.1.1-green.svg) ](http://kotlinlang.org)
 
 Kotlinx.sockets is a library to bring rich coroutines experience to NIO sockets, eliminate terrible callbacks and selector loops and related difficult code.
   
@@ -9,31 +9,28 @@ Consider example ([full source](examples/src/main/kotlin/kotlinx/sockets/example
 ```kotlin
 fun main(args: Array<String>) {
     runBlocking { // start coroutines
-        SelectorManager().use { manager ->
-            manager.socket().use { socket ->
-                socket.connect(InetSocketAddress(InetAddress.getByName("google.com"), 80))
-                println("Connected") // now we are connected
+        aSocket().tcp().connect(InetSocketAddress(InetAddress.getByName("google.com"), 80)).use { socket ->
+            println("Connected") // now we are connected
 
-                // chain of async write
-                socket.send("GET / HTTP/1.1\r\n")
-                socket.send("Host: google.com\r\n")
-                socket.send("Accept: text/html\r\n")
-                socket.send("Connection: close\r\n")
-                socket.send("\r\n")
+            // chain of async write
+            socket.send("GET / HTTP/1.1\r\n")
+            socket.send("Host: google.com\r\n")
+            socket.send("Accept: text/html\r\n")
+            socket.send("Connection: close\r\n")
+            socket.send("\r\n")
 
-                // loop to read bytes and write to the console
-                val bb = ByteBuffer.allocate(8192)
-                while (true) {
-                    bb.clear()
-                    if (socket.read(bb) == -1) break // async read
+            // loop to read bytes and write to the console
+            val bb = ByteBuffer.allocate(8192)
+            while (true) {
+                bb.clear()
+                if (socket.read(bb) == -1) break // async read
 
-                    bb.flip()
-                    System.out.write(bb)
-                    System.out.flush()
-                }
-
-                println()
+                bb.flip()
+                System.out.write(bb)
+                System.out.flush()
             }
+
+            println()
         }
     }
 }
