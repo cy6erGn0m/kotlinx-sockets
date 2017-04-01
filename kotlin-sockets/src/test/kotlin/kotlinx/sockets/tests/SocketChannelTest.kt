@@ -164,7 +164,9 @@ class SocketChannelTest {
 
         runBlocking {
             clientJob.join()
+            clientJob.invokeOnCompletion { it?.let { throw it } }
             server.join()
+            server.invokeOnCompletion { it?.let { throw it } }
         }
     }
 
