@@ -84,8 +84,7 @@ class SocketChannelTest {
                     }
                 }
             } finally {
-                server.join()
-                server.invokeOnCompletion { it?.let { throw it } }
+                server.joinOrFail()
             }
         }
     }
@@ -124,7 +123,7 @@ class SocketChannelTest {
                     }
                 }
             } finally {
-                server.join()
+                server.joinOrFail()
             }
         }
     }
@@ -163,10 +162,8 @@ class SocketChannelTest {
         }
 
         runBlocking {
-            clientJob.join()
-            clientJob.invokeOnCompletion { it?.let { throw it } }
-            server.join()
-            server.invokeOnCompletion { it?.let { throw it } }
+            clientJob.joinOrFail()
+            server.joinOrFail()
         }
     }
 
@@ -211,11 +208,8 @@ class SocketChannelTest {
         }
 
         runBlocking {
-            clientJob.join()
-            server.join()
-
-            server.invokeOnCompletion { it?.let { throw it } }
-            clientJob.invokeOnCompletion { it?.let { throw it } }
+            clientJob.joinOrFail()
+            server.joinOrFail()
         }
     }
 }

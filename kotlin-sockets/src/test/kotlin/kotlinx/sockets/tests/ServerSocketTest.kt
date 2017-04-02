@@ -6,6 +6,7 @@ import kotlinx.sockets.selector.*
 import org.junit.*
 import org.junit.rules.*
 import java.nio.*
+import java.nio.channels.*
 import java.util.concurrent.*
 import kotlin.concurrent.*
 import kotlin.properties.*
@@ -13,6 +14,7 @@ import kotlin.reflect.*
 import kotlin.test.*
 
 class ServerSocketTest {
+    private var tearDown = false
     private val selector = ExplicitSelectorManager()
     private var client: Pair<java.net.Socket, Thread>? = null
     private var server by BlockingValue<ServerSocket>()
@@ -24,10 +26,13 @@ class ServerSocketTest {
 
     @After
     fun tearDown() {
+        tearDown = true
+
         client?.let { (s, t) ->
             s.close()
             t.interrupt()
         }
+        server.close()
 
         selector.close()
         failure?.let { throw it }
@@ -60,7 +65,7 @@ class ServerSocketTest {
 
     @Test
     fun testWrite() {
-        server { client ->
+        val s = server { client ->
             client.write(ByteBuffer.wrap("123".toByteArray()))
         }
 
@@ -71,19 +76,25 @@ class ServerSocketTest {
 
     private fun server(block: suspend (Socket) -> Unit) {
         launch(CommonPool) {
-            val server = aSocket(selector).tcp().bind(null)
-            this@ServerSocketTest.server = server
+            try {
+                val server = aSocket(selector).tcp().bind(null)
+                this@ServerSocketTest.server = server
 
-            bound.countDown()
+                bound.countDown()
 
-            loop@while (failure == null) {
-                server.accept().use {
-                    try {
-                        block(it)
-                    } catch (t: Throwable) {
-                        addFailure(t)
+                loop@ while (failure == null) {
+                    server.accept().use {
+                        try {
+                            block(it)
+                        } catch (t: Throwable) {
+                            addFailure(t)
+                        }
                     }
                 }
+            } catch (e: ClosedChannelException) {
+            } catch (e: CancelledKeyException) {
+            } catch (t: Throwable) {
+                addFailure(t)
             }
         }
     }
@@ -111,11 +122,12 @@ class ServerSocketTest {
         failure?.addSuppressed(t) ?: run { failure = t }
     }
 
-    class BlockingValue<T> : ReadWriteProperty<Any?, T> {
+    inner class BlockingValue<T> : ReadWriteProperty<Any?, T> {
         private var value: Any? = null
         private val latch = CountDownLatch(1)
 
         override fun getValue(thisRef: Any?, property: KProperty<*>): T {
+            if (tearDown && latch.count != 0L) fail("value is not initialized")
             latch.await()
             @Suppress("UNCHECKED_CAST")
             return value as T

@@ -128,14 +128,18 @@ class ClientSocketTest {
     private fun server(block: (java.net.Socket) -> Unit) {
         val server = java.net.ServerSocket(0)
         val thread = thread(start = false) {
-            while (true) {
-                val client = try { server.accept() } catch (t: Throwable) { break }
+            try {
+                while (true) {
+                    val client = try {
+                        server.accept()
+                    } catch (t: Throwable) {
+                        break
+                    }
 
-                try {
                     client.use(block)
-                } catch (t: Throwable) {
-                    serverError?.addSuppressed(t) ?: run { serverError = t }
                 }
+            } catch (t: Throwable) {
+                serverError?.addSuppressed(t) ?: run { serverError = t }
             }
         }
 
