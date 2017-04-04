@@ -12,13 +12,8 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         require(s.interestedOps and op.flag != 0)
 
         val key = s.channel.keyFor(selector)
-        if (key != null && key.readyOps() and op.flag != 0) {
-            return
-        }
 
         suspendCancellableCoroutine<Unit> { c ->
-            c.disposeOnCancel(s)
-
             if (key == null) {
                 s.suspensions.addSuspension(op, c)
                 interest(s)
@@ -29,6 +24,7 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
                 interest(attachment)
             }
 
+            c.disposeOnCancel(s)
             selector.wakeup()
         }
     }
@@ -95,7 +91,7 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
     }
 
     protected fun cancelAllSuspensions(attachment: Selectable, t: Throwable) {
-        attachment.suspensions.invokeForEachPresent { _ ->
+        attachment.suspensions.invokeForEachPresent {
             try {
                 resumeWithException(t)
             } catch (t2: Throwable) { // rejected?
