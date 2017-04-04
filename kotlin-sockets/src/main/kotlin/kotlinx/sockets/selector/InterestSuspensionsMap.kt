@@ -42,8 +42,7 @@ class InterestSuspensionsMap {
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun removeSuspension(interest: SelectInterest): CancellableContinuation<Unit>? = updater(interest).getAndSet(this, null) as CancellableContinuation<Unit>?
+    fun removeSuspension(interest: SelectInterest): CancellableContinuation<Unit>? = updater(interest).getAndSet(this, null)
 
     override fun toString(): String {
         return "R $readHandlerReference W $writeHandlerReference C $connectHandlerReference A $acceptHandlerReference"
@@ -54,10 +53,11 @@ class InterestSuspensionsMap {
     }
 
     companion object {
-        private val updaters = SelectInterest.values().associateBy({ it }, { interest ->
-            AtomicReferenceFieldUpdater.newUpdater(InterestSuspensionsMap::class.java, CancellableContinuation::class.java, "${interest.name.toLowerCase()}HandlerReference")
-        })
+        @Suppress("UNCHECKED_CAST")
+        private val updaters = SelectInterest.values().map { interest ->
+            AtomicReferenceFieldUpdater.newUpdater(InterestSuspensionsMap::class.java, CancellableContinuation::class.java, "${interest.name.toLowerCase()}HandlerReference") as AtomicReferenceFieldUpdater<InterestSuspensionsMap, CancellableContinuation<Unit>?>
+        }.toTypedArray()
 
-        private fun updater(interest: SelectInterest) = updaters[interest] ?: throw IllegalArgumentException("interest $interest is not supported")
+        private fun updater(interest: SelectInterest): AtomicReferenceFieldUpdater<InterestSuspensionsMap, CancellableContinuation<Unit>?> = updaters[interest.ordinal]
     }
 }
