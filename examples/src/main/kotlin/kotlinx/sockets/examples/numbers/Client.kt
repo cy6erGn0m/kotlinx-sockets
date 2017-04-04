@@ -15,21 +15,25 @@ fun main(args: Array<String>) {
 
 fun numbersClient(port: Int, log: Boolean): Long {
     return runBlocking(CommonPool) {
-        aSocket().tcp().tcpNoDelay().configure { this[StandardSocketOptions.SO_LINGER] = 1 }.connect(InetSocketAddress(port)).use { socket ->
-            if (log) {
-                println("Connected")
-            }
+        numbersClientImpl(port, log)
+    }
+}
 
-            val time = measureTimeMillis {
-                main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
-            }
-
-            if (log) {
-                println("time: $time ms")
-            }
-
-            time
+suspend fun numbersClientImpl(port: Int, log: Boolean): Long {
+    return aSocket().tcp().tcpNoDelay().configure { this[StandardSocketOptions.SO_LINGER] = 1 }.connect(InetSocketAddress(port)).use { socket ->
+        if (log) {
+            println("Connected")
         }
+
+        val time = measureTimeMillis {
+            main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
+        }
+
+        if (log) {
+            println("time: $time ms")
+        }
+
+        time
     }
 }
 
