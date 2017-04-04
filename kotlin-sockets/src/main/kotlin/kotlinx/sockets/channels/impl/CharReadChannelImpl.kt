@@ -22,7 +22,7 @@ internal class CharReadChannelImpl(val source: ReadChannel, val charset: Charset
 
         return when {
             rc == -1 -> when {
-                buffer.position() == 0 -> if (resultSize == 0) -1 else resultSize
+                buffer.position() == 0 && resultSize == 0 -> -1
                 else -> resultSize
             }
             resultSize == 0 && dst.hasRemaining() -> read(dst)
