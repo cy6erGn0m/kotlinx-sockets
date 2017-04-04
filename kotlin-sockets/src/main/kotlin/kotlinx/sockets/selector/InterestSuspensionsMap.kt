@@ -23,13 +23,12 @@ class InterestSuspensionsMap {
     fun addSuspension(interest: SelectInterest, continuation: CancellableContinuation<Unit>) {
         val updater = updater(interest)
 
-        val cancellation = if (continuation is CancellableContinuation<*>) {
-            continuation.invokeOnCompletion { if (continuation.isCancelled) dropHandler(interest, continuation) }
-        } else null
-
         if (!updater.compareAndSet(this, null, continuation)) {
-            cancellation?.dispose()
             throw IllegalStateException("Handler for ${interest.name} is already registered")
+        }
+
+        if (continuation is CancellableContinuation<*>) {
+            continuation.invokeOnCompletion { if (continuation.isCancelled) dropHandler(interest, continuation) }
         }
     }
 
@@ -45,6 +44,10 @@ class InterestSuspensionsMap {
 
     @Suppress("UNCHECKED_CAST")
     fun removeSuspension(interest: SelectInterest): CancellableContinuation<Unit>? = updater(interest).getAndSet(this, null) as CancellableContinuation<Unit>?
+
+    override fun toString(): String {
+        return "R $readHandlerReference W $writeHandlerReference C $connectHandlerReference A $acceptHandlerReference"
+    }
 
     private fun dropHandler(interest: SelectInterest, continuation: CancellableContinuation<Unit>) {
         updater(interest).compareAndSet(this, continuation, null)
