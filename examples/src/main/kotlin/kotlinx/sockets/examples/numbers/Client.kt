@@ -71,8 +71,7 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
 private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
-    output.write("SUM\n")
-    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write(numbers.joinToString(",", prefix = "SUM\n", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
@@ -90,8 +89,7 @@ private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel
 private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
-    output.write("AVG\n")
-    output.write(numbers.joinToString(",", postfix = "\n"))
+    output.write(numbers.joinToString(",", prefix = "AVG\n", postfix = "\n"))
 
     val response = input.readLine()
     val result = when (response) {
