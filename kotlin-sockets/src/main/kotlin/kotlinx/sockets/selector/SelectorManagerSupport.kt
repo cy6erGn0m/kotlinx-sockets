@@ -8,24 +8,16 @@ import java.nio.channels.spi.*
 abstract class SelectorManagerSupport internal constructor() : SelectorManager {
     final override val provider: SelectorProvider = SelectorProvider.provider()
 
-    protected suspend fun select(selector: Selector, s: Selectable, op: SelectInterest, interest: (Selectable) -> Unit) {
+    protected suspend fun select(s: Selectable, op: SelectInterest, publishInterest: (Selectable) -> Unit) {
         require(s.interestedOps and op.flag != 0)
 
-        val key = s.channel.keyFor(selector)
-
         suspendCancellableCoroutine<Unit> { c ->
-            if (key == null) {
-                s.suspensions.addSuspension(op, c)
-                interest(s)
-            } else {
-                val attachment = key.subject ?: throw IllegalStateException()
-
-                attachment.suspensions.addSuspension(op, c)
-                interest(attachment)
-            }
-
+            s.suspensions.addSuspension(op, c)
             c.disposeOnCancel(s)
-            selector.wakeup()
+
+            if (!c.isCancelled) {
+                publishInterest(s)
+            }
         }
     }
 

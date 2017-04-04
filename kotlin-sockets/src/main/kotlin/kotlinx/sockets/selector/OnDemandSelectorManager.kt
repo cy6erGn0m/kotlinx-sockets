@@ -1,6 +1,5 @@
 package kotlinx.sockets.selector
 
-import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.*
 import java.io.*
 import java.nio.channels.*
@@ -29,20 +28,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
     }
 
     suspend override fun select(selectable: Selectable, interest: SelectInterest) {
-        require(selectable !== Poison)
-
-        var selector = currentSelector.get()
-        if (selector == null) {
-            selector = suspendCancellableCoroutine<Selector> { c ->
-                c.disposeOnCancel(selectable)
-                withSelector {
-                    c.resume(this)
-                }
-            }
-        }
-
-        select(selector, selectable, interest, { interestQueue.put(it) })
-        withSelector { wakeup() }
+        select(selectable, interest, { interestQueue.put(it); withSelector { wakeup() } })
     }
 
     override fun notifyClosed(s: Selectable) {
@@ -59,11 +45,11 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
         } else if (existing != null) {
             block(existing)
         } else if (forceStart) {
-            start(block)
+            selectorsCoroutineDispatcher.dispatch(selectorsCoroutineDispatcher, Runnable { selectorMain(AtomicReference(block)) })
         }
     }
 
-    private fun selectorMain(block: (Selector.() -> Unit)?) {
+    private fun selectorMain(block: AtomicReference<(Selector.() -> Unit)?>) {
         var evaluated = false
         require(Thread.currentThread().threadGroup === selectorsGroup)
 
@@ -71,8 +57,8 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
             while (!closed && currentSelector.compareAndSet(null, selector)) {
                 try {
                     if (!evaluated) {
-                        block?.invoke(selector)
                         evaluated = true
+                        block.getAndSet(null)?.invoke(selector)
                     }
 
                     do {
@@ -90,54 +76,47 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
             }
         }
 
-        if (!closed && !evaluated && block != null) {
-            withSelector(true, block)
+        if (!closed && !evaluated) {
+            block.get()?.let { block ->
+                withSelector(true, block)
+            }
         }
     }
 
     private fun loop(selector: Selector) {
-        processInterestQueue(selector)
-
         while (!closed) {
             val preselected = selector.selectNow()
-            val hasInterestToProcess = interestQueue.isNotEmpty()
-
-            if (preselected == 0 && selector.keys().isEmpty() && !hasInterestToProcess && !closed) {
-                val e = interestQueue.poll(idleTime, idleTimeUnit) ?: return
-                if (e === Poison) break
-
-                applyInterest(selector, e)
-            } else if (preselected > 0 || hasInterestToProcess || selector.select() > 0) {
-                selector.selectedKeys().forEach { handleSelectedKey(it) }
-                selector.selectedKeys().clear()
-            }
-
             processInterestQueue(selector)
+
+            if (preselected == 0 && selector.keys().isEmpty() && !closed) {
+                val e = interestQueue.poll(idleTime, idleTimeUnit) ?: return
+                applyInterest(selector, e)
+            } else if (preselected > 0 || selector.select() > 0) {
+                selector.selectedKeys().apply {
+                    if (isNotEmpty()) {
+                        forEach {
+                            handleSelectedKey(it) }
+                        clear()
+                    }
+                }
+            }
         }
     }
 
     private fun processInterestQueue(selector: Selector) {
-        while (!closed) {
+        while (true) {
             val e = interestQueue.poll() ?: break
-            if (e == Poison) break
-
             applyInterest(selector, e)
-        }
-    }
-
-    private fun start(block: (Selector.() -> Unit)?) {
-        if (currentSelector.get() == null) {
-            selectorsCoroutineDispatcher.dispatch(selectorsCoroutineDispatcher, Runnable { selectorMain(block) })
         }
     }
 
     companion object {
         private val Poison = object : Selectable {
             override val suspensions: InterestSuspensionsMap
-                get() = throw UnsupportedOperationException()
+                get() = throw ClosedSelectorException()
 
             override val channel: SelectableChannel
-                get() = throw UnsupportedOperationException()
+                get() = throw ClosedSelectorException()
 
             override val interestedOps: Int
                 get() = 0
@@ -149,6 +128,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
             }
 
             override fun interestOp(interest: SelectInterest, state: Boolean) {
+                throw ClosedSelectorException()
             }
         }
     }

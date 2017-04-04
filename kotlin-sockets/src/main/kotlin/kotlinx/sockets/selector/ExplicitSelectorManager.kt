@@ -66,7 +66,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
     }
 
     suspend override fun select(selectable: Selectable, interest: SelectInterest) {
-        select(selector.value, selectable, interest, { interestQueue.put(it) })
+        select(selectable, interest, { interestQueue.put(it); selector.value.wakeup() })
     }
 
     private tailrec fun selectorLoop(selector: Selector) {
