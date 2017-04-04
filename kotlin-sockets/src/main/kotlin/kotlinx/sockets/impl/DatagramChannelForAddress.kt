@@ -6,6 +6,7 @@ import java.nio.*
 
 internal class DatagramChannelForAddress(val out: DatagramWriteChannel, val address: SocketAddress) : WriteChannel {
     override fun shutdownOutput() {
+        out.shutdownOutput()
     }
 
     suspend override fun write(src: ByteBuffer) {

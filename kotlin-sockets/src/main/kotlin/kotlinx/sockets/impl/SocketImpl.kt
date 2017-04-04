@@ -64,7 +64,10 @@ internal class SocketImpl<out S : SocketChannel>(override val channel: S, val se
     }
 
     override fun shutdownOutput() {
-        channel.shutdownOutput()
+        try {
+            channel.shutdownOutput()
+        } catch (ignore: ClosedChannelException) {
+        }
     }
 
     override fun close() {

@@ -204,6 +204,7 @@ fun WriteChannel.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): 
 fun <C : WriteChannel, T> C.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> ByteBuffer): ActorJob<T> {
     return actor(ioCoroutineDispatcher, capacity) {
         writeLoop(this@openSendChannel, this, pool, transform)
+        shutdownOutput()
     }
 }
 
@@ -222,6 +223,7 @@ fun WriteChannel.sendFrom(source: ReceiveChannel<ByteBuffer>, pool: Channel<Byte
 fun <C : WriteChannel, T> C.sendFrom(source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer): Job {
     return launch(ioCoroutineDispatcher, start = false) {
         writeLoop(this@sendFrom, source, pool, transform)
+        shutdownOutput()
     }
 }
 
@@ -304,6 +306,7 @@ fun WriteChannel.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>
 fun <C : WriteChannel, T> C.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> CharSequence): ActorJob<T> {
     return actor(ioCoroutineDispatcher, capacity) {
         encodeAndWriteLoop(this@openTextSendChannel, this, charset, pool, transform)
+        shutdownOutput()
     }
 }
 
@@ -374,12 +377,22 @@ fun <T : ASocket, S : Acceptable<T>, R> S.acceptSocketsTo(destination: SendChann
 
 private suspend fun <T : ASocket, S : Acceptable<T>, R> acceptorLoop(source: S, destination: SendChannel<R>, transform: S.(T) -> R) {
     while (true) {
-        val e = try { source.accept() } catch (e: ClosedChannelException) { break } catch (e: CancelledKeyException) { break }
+        val e = try { source.accept() }
+        catch (e: ClosedChannelException) {
+            break
+        }
+        catch (e: CancelledKeyException) {
+            break
+        }
 
         try {
             destination.send(transform(source, e))
+        } catch (closed: ClosedSendChannelException) {
+            e.close()
+            break
         } catch (t: Throwable) {
             e.close()
+            t.printStackTrace()
             throw t
         }
     }
@@ -442,6 +455,8 @@ private suspend fun <A, R> connectorLoop(selector: SelectorManager,
             val connected = socket.connect(address)
             try {
                 destination.send(outTransform(src, connected))
+            } catch (closed: ClosedSendChannelException) {
+                connected.close()
             } catch (t: Throwable) {
                 connected.close()
                 throw t
