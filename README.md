@@ -36,6 +36,43 @@ fun main(args: Array<String>) {
 }
 ```
 
+### Getting started
+
+#### Maven
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.jetbrains.kotlinx</groupId>
+        <artifactId>kotlin-sockets</artifactId>
+        <version>0.0.4</version>
+    </dependency>
+</dependencies>
+
+<repositories>
+    <repository>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+        <id>bintray-kotlin-kotlin-dev</id>
+        <name>kotlin-dev</name>
+        <url>http://dl.bintray.com/kotlin/kotlin-dev</url>
+    </repository>
+</repositories>
+```
+
+#### Gradle
+
+```gradle
+repositories { 
+    maven { url "http://dl.bintray.com/kotlin/kotlin-dev" } 
+}
+
+dependencies {
+    compile 'org.jetbrains.kotlinx:kotlin-sockets:0.0.4'
+}
+```
+
 ### Examples
 
  - [socket echo](examples/src/main/kotlin/kotlinx/sockets/examples/Echo.kt)
