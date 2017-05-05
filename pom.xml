@@ -28,9 +28,9 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
-        <kotlin.version>1.1.1</kotlin.version>
+        <kotlin.version>1.1.2-3</kotlin.version>
         <junit.version>4.12</junit.version>
-        <coroutines.version>0.14.1</coroutines.version>
+        <coroutines.version>0.15</coroutines.version>
         <jmh.version>1.18</jmh.version>
 
         <bintray.url>https://api.bintray.com/maven/kotlin/kotlin-dev/kotlinx.sockets</bintray.url>
