@@ -20,6 +20,7 @@
         <module>kotlin-sockets</module>
         <module>examples</module>
         <module>jmh-benchmark</module>
+        <module>kotlinx-http-server</module>
     </modules>
 
     <properties>
