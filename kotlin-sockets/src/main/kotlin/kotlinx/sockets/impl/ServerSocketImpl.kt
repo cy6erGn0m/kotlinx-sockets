@@ -26,6 +26,7 @@ internal class ServerSocketImpl(override val channel: ServerSocketChannel, val s
     private fun accepted(nioChannel: SocketChannel): Socket {
         interestOp(SelectInterest.ACCEPT, false)
         nioChannel.configureBlocking(false)
+        nioChannel.setOption(StandardSocketOptions.TCP_NODELAY, true)
         return SocketImpl(nioChannel, selector)
     }
 
