@@ -38,10 +38,11 @@ fun main(args: Array<String>) {
 
 private suspend fun handleClient(client: Socket) {
     val bb = bufferPool.poll() ?: ByteBuffer.allocate(bufferSize)
+    val hb = bufferPool.poll() ?: ByteBuffer.allocate(bufferSize)
 
     try {
         loop@ while (true) {
-            val parser = HttpParser(bb)
+            val parser = HttpParser(bb, hb)
             val request = parser.parse(client) ?: break@loop
 
             when {
@@ -71,14 +72,15 @@ private suspend fun handleClient(client: Socket) {
         }
     } finally {
         bufferPool.offer(bb)
+        bufferPool.offer(hb)
     }
 }
 
-private fun defaultConnectionForVersion(version: String) = if (version == "HTTP/1.1") "keep-alive" else "close"
+private fun defaultConnectionForVersion(version: HttpVersion) = if (version == HttpVersion.HTTP11) "keep-alive" else "close"
 
-private suspend fun WriteChannel.respond(code: Int, statusMessage: String, version: String, connection: String, content: String) {
+private suspend fun WriteChannel.respond(code: Int, statusMessage: String, version: HttpVersion, connection: String, content: String) {
     write(ByteBuffer.wrap(buildString(256) {
-        append(version)
+        append(version.text)
         append(' ')
         append(code)
         append(' ')

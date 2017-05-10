@@ -3,26 +3,26 @@ package kotlinx.http.server
 import kotlinx.sockets.channels.*
 import java.nio.*
 
-internal class HttpParser(val bb: ByteBuffer) {
+internal class HttpParser(val parseBuffer: ByteBuffer, val headersBuffer: ByteBuffer) {
     private var state = State.Method
-    private val headersBody: ByteArrayBuilder = ByteArrayBuilder()
-    private val headers = ArrayList<HeaderEntry>()
+    private val headersBody: ByteArrayBuilder = ByteArrayBuilder(headersBuffer.array())
+    private val headers = ArrayList<HeaderEntry>(16)
 
     private var expectedBody = true
     private var method: HttpMethod? = null
     private var methodHash: Int = 0
     private var uri: String? = null
-    private var version: String? = null
+    private var version: HttpVersion? = null
 
     suspend fun parse(ch: ReadChannel): HttpRequest? {
         readLoop@ while (true) {
-            val rc = ch.read(bb)
+            val rc = ch.read(parseBuffer)
             if (rc == -1) {
                 if (state == State.Method) return null
                 else throw ParserException("Unexpected EOF")
             }
 
-            bb.flip()
+            parseBuffer.flip()
 
             parseLoop@ while (true) {
                 val result = when (state) {
@@ -33,7 +33,7 @@ internal class HttpParser(val bb: ByteBuffer) {
                     State.Body -> {
                         if (expectedBody) TODO()
 
-                        bb.compact()
+                        parseBuffer.compact()
                         break@readLoop
                     }
                 }
@@ -43,29 +43,20 @@ internal class HttpParser(val bb: ByteBuffer) {
                 }
             }
 
-            bb.compact()
+            parseBuffer.compact()
         }
-
-//        println("Parsed.")
-//        println(" - method: |$method|")
-//        println(" - uri: |$uri|")
-//        println(" - version: |$version|")
-//        println(" - headers: ${headers.size} pcs")
-//        headers.forEach { h ->
-//            println("     - |${h.name(headersBody.array)}| = |${h.value(headersBody.array)}|")
-//        }
-//        println("end")
 
         return HttpRequest(method!!, uri!!, version!!, headersBody.array, headers)
     }
 
     private fun parseMethod(): Boolean {
         if (selectUntilSpace(EOL.ShouldNotBe) { start, length ->
-            val h = bb.hashCodeOfLowerCase(start, length)
-            val s = bb.stringOf(start, length)
+            val h = parseBuffer.hashCodeOfLowerCase(start, length)
 
             methodHash = h
-            method = HttpMethod.lookup(h)?.takeIf { it.name.equals(s, ignoreCase = true) } ?: HttpMethod(s, false)
+            method = HttpMethod.lookup(h)
+                    ?.takeIf { equalsIgnoreCase(parseBuffer, start, length, it.name) }
+                    ?: HttpMethod(parseBuffer.stringOf(start, length), false)
         }) {
             expectedBody = method?.bodyExpected ?: false
             state = State.Uri
@@ -76,7 +67,9 @@ internal class HttpParser(val bb: ByteBuffer) {
     }
 
     private fun parseUri(): Boolean {
-        if (selectUntilSpace(EOL.ShouldNotBe) { start, length -> uri = bb.stringOf(start, length) }) {
+        if (selectUntilSpace(EOL.ShouldNotBe) { start, length ->
+            uri = if (length <= 1) "/" else parseBuffer.stringOf(start, length)
+        }) {
             state = State.Version
             return true
         }
@@ -85,11 +78,10 @@ internal class HttpParser(val bb: ByteBuffer) {
     }
 
     private fun parseVersion(): Boolean {
-        if (selectUntilSpace(EOL.ShouldBe) { start, length -> version = bb.stringOf(start, length) }) {
-            when (version) {
-                "HTTP/1.0" -> state = State.Body
-                "HTTP/1.1" -> state = State.Headers
-                else -> throw ParserException("Unsupported HTTP version |$version|")
+        if (selectUntilSpace(EOL.ShouldBe) { start, length -> version = HttpVersion.byHash[parseBuffer.hashCodeOfLowerCase(start, length)] ?: throw ParserException("Unsupported HTTP version |${parseBuffer.stringOf(start, length)}|") }) {
+            when (version!!) {
+                HttpVersion.HTTP10 -> state = State.Body
+                HttpVersion.HTTP11 -> state = State.Headers
             }
             return true
         }
@@ -108,25 +100,25 @@ internal class HttpParser(val bb: ByteBuffer) {
             var nameLength: Int
 
             val colon = selectCharacter(start) { it == ':' }
-            if (colon == -1) throw ParserException("Header should have colon, but got line |${bb.stringOf(colon, length)}|")
+            if (colon == -1) throw ParserException("Header should have colon, but got line |${parseBuffer.stringOf(colon, length)}|")
 
             nameLength = colon - start
 
-            while (nameLength > 0 && bb.get(nameStart + nameLength - 1).isWhitespace()) {
+            while (nameLength > 0 && parseBuffer.get(nameStart + nameLength - 1).isWhitespace()) {
                 nameLength--
             }
 
             var valueStart = colon + 1
             var valueLength = length - (colon - start) - 1
 
-            while (valueLength > 0 && bb.get(valueStart).isWhitespace()) {
+            while (valueLength > 0 && parseBuffer.get(valueStart).isWhitespace()) {
                 valueStart++
                 valueLength--
             }
 
-            val hash = bb.hashCodeOfLowerCase(nameStart, nameLength)
-            nameStart = headersBody.append(bb, nameStart, nameLength)
-            valueStart = headersBody.append(bb, valueStart, valueLength)
+            val hash = parseBuffer.hashCodeOfLowerCase(nameStart, nameLength)
+            nameStart = headersBody.append(parseBuffer, nameStart, nameLength)
+            valueStart = headersBody.append(parseBuffer, valueStart, valueLength)
 
             headers.add(HeaderEntry(nameStart, nameLength, hash, valueStart, valueLength))
         }
@@ -135,17 +127,17 @@ internal class HttpParser(val bb: ByteBuffer) {
     private inline fun selectUntilSpace(eol: EOL, block: (Int, Int) -> Unit): Boolean {
         val end = selectCharacter(predicate = Char::isWhitespace)
         if (end == -1) return false
-        val start = bb.position()
+        val start = parseBuffer.position()
 
         when (eol) {
-            EOL.ShouldBe -> if (!bb.get(end).isCrOrLf()) throw ParserException("Expected EOL but got extra characters in line |${bb.stringOf(bb.position(), end - start)}|")
-            EOL.ShouldNotBe -> if (bb.get(end).isCrOrLf()) throw ParserException("EOL is unexpected")
+            EOL.ShouldBe -> if (!parseBuffer.get(end).isCrOrLf()) throw ParserException("Expected EOL but got extra characters in line |${parseBuffer.stringOf(parseBuffer.position(), end - start)}|")
+            EOL.ShouldNotBe -> if (parseBuffer.get(end).isCrOrLf()) throw ParserException("EOL is unexpected")
             EOL.CouldBe -> Unit
         }
 
         block(start, end - start)
 
-        bb.position(skipSpacesAndCrLf(end))
+        parseBuffer.position(skipSpacesAndCrLf(end))
         return true
     }
 
@@ -153,41 +145,41 @@ internal class HttpParser(val bb: ByteBuffer) {
         val eol = select { it.isCrOrLf() }
         if (eol == -1) return false
 
-        val start = bb.position()
+        val start = parseBuffer.position()
         block(start, eol - start)
 
-        bb.position(skipCrLf(eol))
+        parseBuffer.position(skipCrLf(eol))
         return true
     }
 
-    private inline fun select(start: Int = bb.position(), predicate: (Byte) -> Boolean): Int {
-        for (idx in start..bb.limit() - 1) {
-            if (predicate(bb.get(idx))) return idx
+    private inline fun select(start: Int = parseBuffer.position(), predicate: (Byte) -> Boolean): Int {
+        for (idx in start..parseBuffer.limit() - 1) {
+            if (predicate(parseBuffer.get(idx))) return idx
         }
 
         return -1
     }
 
-    private inline fun selectCharacter(start: Int = bb.position(), predicate: (Char) -> Boolean): Int = select(start) { predicate(it.toChar()) }
+    private inline fun selectCharacter(start: Int = parseBuffer.position(), predicate: (Char) -> Boolean): Int = select(start) { predicate(it.toChar()) }
 
     private fun skipSpacesAndCrLf(pos: Int): Int {
         var newPosition = pos
 
-        while (newPosition < bb.limit() && bb.get(newPosition).let { it.isWhitespace() && !it.isCrOrLf() })
+        while (newPosition < parseBuffer.limit() && parseBuffer.get(newPosition).let { it.isWhitespace() && !it.isCrOrLf() })
             newPosition++
 
         return skipCrLf(newPosition)
     }
 
     private fun skipCrLf(pos: Int): Int {
-        if (pos >= bb.limit()) return pos
+        if (pos >= parseBuffer.limit()) return pos
 
         var newPosition = pos
 
-        val first = bb.get(newPosition)
+        val first = parseBuffer.get(newPosition)
         if (first == CR) {
             newPosition++
-            if (newPosition < bb.limit() && bb.get(newPosition) == LF) {
+            if (newPosition < parseBuffer.limit() && parseBuffer.get(newPosition) == LF) {
                 newPosition++
             }
         } else if (first == LF) {

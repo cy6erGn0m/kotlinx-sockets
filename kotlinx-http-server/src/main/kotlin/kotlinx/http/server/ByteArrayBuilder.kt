@@ -2,10 +2,8 @@ package kotlinx.http.server
 
 import java.nio.*
 
-internal class ByteArrayBuilder(estimate: Int = 128) {
+internal class ByteArrayBuilder(var array: ByteArray) {
     private var size = 0
-    var array: ByteArray = ByteArray(maxOf(estimate, 16))
-        private set
 
     fun append(source: ByteArray, start: Int, length: Int): Int {
         require(length >= 0)

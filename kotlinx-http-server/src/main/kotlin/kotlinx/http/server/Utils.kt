@@ -16,9 +16,8 @@ internal fun String.hashCodeLowerCase(): Int {
     var hashCode = 0
     for (pos in 0..length - 1) {
         var v = get(pos).toInt()
-        val vc = v.toChar()
 
-        if (vc in 'A'..'Z')
+        if (v in 0x41..0x5a) // A..Z
             v = 'a'.toInt() + (v - 'A'.toInt())
 
         hashCode = 31 * hashCode + v
@@ -31,13 +30,54 @@ internal fun ByteBuffer.hashCodeOfLowerCase(start: Int, length: Int): Int {
     var hashCode = 0
     for (pos in start..start + length - 1) {
         var v = get(pos).toInt()
-        val vc = v.toChar()
 
-        if (vc in 'A'..'Z')
+        if (v in 0x41..0x5a) // A..Z
             v = 'a'.toInt() + (v - 'A'.toInt())
 
         hashCode = 31 * hashCode + v
     }
 
     return hashCode
+}
+
+internal fun equalsIgnoreCase(bb: ByteBuffer, start: Int, length: Int, s: String): Boolean {
+    if (length != s.length) return false
+
+    for (pos in start..start + length - 1) {
+        var v = bb.get(pos).toInt()
+        var v2 = s[pos - start].toInt()
+
+        if (v == v2) continue
+
+        if (v in 0x41..0x5a) // A..Z
+            v = 'a'.toInt() + (v - 'A'.toInt())
+
+        if (v2 in 0x41..0x5a) // A..Z
+            v2 = 'a'.toInt() + (v2 - 'A'.toInt())
+
+        if (v != v2) return false
+    }
+
+    return true
+}
+
+internal fun equalsIgnoreCase(bb: ByteArray, start: Int, length: Int, s: String): Boolean {
+    if (length != s.length) return false
+
+    for (pos in start..start + length - 1) {
+        var v = bb[pos].toInt()
+        var v2 = s[pos - start].toInt()
+
+        if (v == v2) continue
+
+        if (v in 0x41..0x5a) // A..Z
+            v = 'a'.toInt() + (v - 'A'.toInt())
+
+        if (v2 in 0x41..0x5a) // A..Z
+            v2 = 'a'.toInt() + (v2 - 'A'.toInt())
+
+        if (v != v2) return false
+    }
+
+    return true
 }

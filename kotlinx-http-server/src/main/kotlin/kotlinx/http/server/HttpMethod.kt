@@ -1,15 +1,17 @@
 package kotlinx.http.server
 
-class HttpMethod(val name: String, val bodyExpected: Boolean) {
+class HttpMethod(val name: String,
+                 val bodyExpected: Boolean,
+                 val ktorMethod: org.jetbrains.ktor.http.HttpMethod = org.jetbrains.ktor.http.HttpMethod.parse(name)) {
     val hash = name.hashCodeLowerCase()
 
     companion object {
-        val Get = HttpMethod("GET", false)
-        val Post = HttpMethod("POST", true)
-        val Put = HttpMethod("PUT", true)
-        val Delete = HttpMethod("DELETE", false)
-        val Head = HttpMethod("HEAD", false)
-        val Options = HttpMethod("OPTIONS", false)
+        val Get = HttpMethod("GET", false, org.jetbrains.ktor.http.HttpMethod.Get)
+        val Post = HttpMethod("POST", true, org.jetbrains.ktor.http.HttpMethod.Post)
+        val Put = HttpMethod("PUT", true, org.jetbrains.ktor.http.HttpMethod.Put)
+        val Delete = HttpMethod("DELETE", false, org.jetbrains.ktor.http.HttpMethod.Delete)
+        val Head = HttpMethod("HEAD", false, org.jetbrains.ktor.http.HttpMethod.Head)
+        val Options = HttpMethod("OPTIONS", false, org.jetbrains.ktor.http.HttpMethod.Options)
 
         val known = arrayOf(Get, Post, Put, Delete, Head, Options)
         val table: Array<HttpMethod?>

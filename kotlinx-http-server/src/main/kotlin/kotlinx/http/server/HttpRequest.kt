@@ -1,13 +1,12 @@
 package kotlinx.http.server
 
-class HttpRequest(val method: HttpMethod, val uri: String, val version: String, val headersBody: ByteArray, val headers: ArrayList<HeaderEntry>) {
+class HttpRequest(val method: HttpMethod, val uri: String, val version: HttpVersion, val headersBody: ByteArray, val headers: ArrayList<HeaderEntry>) {
 
     fun header(name: String): List<HeaderEntry> {
         val h = name.hashCodeLowerCase()
 
         return headers.filter {
-            it.nameHash == h &&
-                    it.name(headersBody).equals(name, ignoreCase = true)
+            it.nameHash == h && equalsIgnoreCase(headersBody, it.nameStart, it.nameLength, name)
         }
     }
 
@@ -15,8 +14,7 @@ class HttpRequest(val method: HttpMethod, val uri: String, val version: String, 
         val h = name.hashCodeLowerCase()
 
         return headers.firstOrNull {
-            it.nameHash == h &&
-                    it.name(headersBody).equals(name, ignoreCase = true)
+            it.nameHash == h && equalsIgnoreCase(headersBody, it.nameStart, it.nameLength, name)
         }
     }
 }
