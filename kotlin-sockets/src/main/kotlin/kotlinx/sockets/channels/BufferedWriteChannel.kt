@@ -14,8 +14,22 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
             buffer.order(newValue)
         }
 
+    val capacity: Int
+        get() = buffer.capacity()
+
+    val remaining: Int
+        get() = buffer.remaining()
+
     fun putByte(value: Byte) {
         buffer.put(value)
+    }
+
+    fun putBytes(array: ByteArray) {
+        buffer.put(array)
+    }
+
+    fun putBuffer(bb: ByteBuffer) {
+        buffer.put(bb)
     }
 
     fun putUByte(value: Int) {
@@ -85,18 +99,23 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
         }
     }
 
+    /**
+     * Flushes all outstanding bytes, releases buffer and delegates to parent's [shutdownOutput]
+     */
     override fun shutdownOutput() {
         runBlocking {
             flush()
-            if (pool !== Empty) {
-                pool.offer(buffer)
-                buffer = Empty
-            }
+            reset()
 
             shutdownImpl()
         }
     }
 
+    /**
+     * Ensures that the internal buffer has at least [required] bytes free.
+     * If not then flush is triggered.
+     * Throws an exception if [required] is too large
+     */
     suspend fun ensureCapacity(required: Int) {
         if (buffer.remaining() < required) {
             flush()
@@ -115,6 +134,18 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
             newBuffer()
         } else {
             buffer.clear()
+        }
+    }
+
+    /**
+     * Releases internal buffer. All outstanding bytes are discarded.
+     */
+    fun reset() {
+        val bb = buffer
+
+        if (bb !== Empty) {
+            buffer = Empty
+            pool.offer(bb)
         }
     }
 
