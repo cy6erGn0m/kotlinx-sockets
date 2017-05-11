@@ -5,7 +5,7 @@
 
     <groupId>org.jetbrains.kotlinx</groupId>
     <artifactId>kotlin-sockets-parent</artifactId>
-    <version>0.0.7-SNAPSHOT</version>
+    <version>0.0.8-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Kotlinx sockets</name>
