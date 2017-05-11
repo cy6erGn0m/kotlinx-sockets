@@ -81,7 +81,7 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
                 encoder.encode(from, buffer, true)
             }
 
-            if (!buffer.hasRemaining()) {
+            if (from.hasRemaining()) {
                 flush()
             }
         }
@@ -89,8 +89,12 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
 
     suspend override fun write(src: ByteBuffer) {
         while (src.hasRemaining()) {
-            while (src.hasRemaining() && buffer.hasRemaining()) {
+            if (src.remaining() <= buffer.remaining()) {
                 buffer.put(src)
+            } else {
+                while (src.hasRemaining() && buffer.hasRemaining()) {
+                    buffer.put(src.get())
+                }
             }
 
             if (!buffer.hasRemaining()) {
@@ -126,14 +130,16 @@ abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteB
     }
 
     suspend fun flush() {
-        buffer.flip()
-        if (buffer.hasRemaining()) {
-            doWrite(buffer)
+        val bb = buffer
+
+        bb.flip()
+        if (bb.hasRemaining()) {
+            doWrite(bb)
             newBuffer()
-        } else if (buffer === Empty) {
+        } else if (bb === Empty) {
             newBuffer()
         } else {
-            buffer.clear()
+            bb.clear()
         }
     }
 
