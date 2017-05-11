@@ -5,7 +5,7 @@
 
     <groupId>org.jetbrains.kotlinx</groupId>
     <artifactId>kotlin-sockets-parent</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.7-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Kotlinx sockets</name>
@@ -13,7 +13,7 @@
     <scm>
         <url>https://github.com/cy6erGn0m/kotlinx.sockets</url>
         <connection>scm:git:git@github.com:cy6erGn0m/kotlinx.sockets.git</connection>
-        <tag>0.0.6</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
