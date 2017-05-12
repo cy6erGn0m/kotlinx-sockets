@@ -94,9 +94,52 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
         return sb.toString()
     }
 
+    /**
+     * Reads a line from channel, only ISO-8859-1 is supported
+     * Supported line endings are: CR, LF, CR+LF
+     */
+    suspend fun <A : Appendable> readASCIILineTo(out: A): Boolean {
+        var cr = false
+
+        fill(0)
+        if (!buffer.hasRemaining()) return false
+
+        loop@while (true) {
+            if (!buffer.hasRemaining()) {
+                fill(0)
+                if (!buffer.hasRemaining()) break
+            }
+
+            while (buffer.hasRemaining()) {
+                val ch = buffer.get().toChar()
+                when (ch) {
+                    '\r' -> cr = true
+                    '\n' -> break@loop
+                    else -> {
+                        if (cr) {
+                            buffer.position(buffer.position() - 1) // push back
+                            break@loop
+                        }
+
+                        out.append(ch)
+                    }
+                }
+            }
+        }
+
+        return true
+    }
+
+    suspend fun readASCIILine(estimate: Int = 16): String? {
+        val sb = StringBuilder(estimate)
+        return if (readASCIILineTo(sb)) sb.toString() else null
+    }
+
     suspend fun fill(required: Int) {
-        while (buffer.remaining() < required) {
+        while (buffer.remaining() < required || !buffer.hasRemaining()) {
             val next = remaining ?: receiveImpl() ?: break
+            val old = buffer
+
             remaining = null
 
             if (buffer.hasRemaining()) {
@@ -108,11 +151,14 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
                     newBuffer.put(next.get())
                 }
 
+                newBuffer.flip()
                 buffer = newBuffer
                 if (next.hasRemaining()) remaining = next
             } else {
                 buffer = next
             }
+
+            pool.offer(old)
         }
 
         if (buffer.remaining() < required) throw BufferUnderflowException()
