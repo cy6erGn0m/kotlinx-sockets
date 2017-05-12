@@ -100,30 +100,33 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
         return sb.toString()
     }
 
-    /**
-     * Provides fold operation for every nio ByteBuffer until end or if stop function were called.
-     * All unprocessed bytes in the buffer will be discarded before next iteration except the case when
-     * fold has been stopped via stop function.
-     */
-    suspend fun <A : Any> fold(initial: A, scan: (A, ByteBuffer, stop: () -> Unit) -> A): A {
-        fill(0)
+    sealed class LookAheadResult {
+        object Continue : LookAheadResult()
+        object NeedMore : LookAheadResult()
+        class NeedAtLeast(val bytes: Int): LookAheadResult()
+        object End : LookAheadResult()
+    }
 
-        var state = initial
-        var stopped = false
-        fun stop() {
-            stopped = true
-        }
-        val stopRef = ::stop
+    suspend fun lookAhead(visitor: (buffer: ByteBuffer, last: Boolean) -> LookAheadResult) {
+        var lastResult: LookAheadResult = LookAheadResult.Continue
+        var last = false
 
-        while (!stopped && buffer.hasRemaining()) {
-            state = scan(state, buffer, stopRef)
-            if (stopped) break
+        do {
+            if (lastResult is LookAheadResult.NeedAtLeast) {
+                fill(lastResult.bytes)
+            } else if (!buffer.hasRemaining() || lastResult == LookAheadResult.NeedMore) {
+                val before = buffer.remaining()
 
-            buffer.position(buffer.limit())
-            fill(0)
-        }
+                do {
+                    if (!fill()) {
+                        last = true
+                        break
+                    }
+                } while (buffer.remaining() == before)
+            }
 
-        return state
+            lastResult = visitor(buffer, last)
+        } while (lastResult != LookAheadResult.End)
     }
 
     /**
@@ -132,26 +135,35 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
      */
     suspend fun <A : Appendable> readASCIILineTo(out: A): Boolean {
         var cr = false
+        var eol = false
+        var appended = false
 
-        return fold(false) { rc, bb, stop ->
+        lookAhead { bb, last ->
             loop@while (bb.hasRemaining()) {
                 val ch = bb.get().toChar()
                 when {
                     ch == '\r' -> cr = true
                     ch == '\n' -> {
-                        stop()
-                        break@loop
+                        eol = true
+                        return@lookAhead LookAheadResult.End
                     }
                     cr -> {
                         bb.position(bb.position() - 1)
-                        break@loop
+                        eol = true
+                        return@lookAhead LookAheadResult.End
                     }
-                    else -> out.append(ch)
+                    else -> {
+                        appended = true
+                        out.append(ch)
+                    }
                 }
+
             }
 
-            true
+            if (last) LookAheadResult.End else LookAheadResult.Continue
         }
+
+        return eol || appended
     }
 
     suspend fun readASCIILine(estimate: Int = 16): String? {
@@ -161,31 +173,40 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
 
     suspend fun fill(required: Int) {
         while (buffer.remaining() < required || !buffer.hasRemaining()) {
-            val next = remainingBuffer ?: receiveImpl() ?: break
-            val old = buffer
-
-            remainingBuffer = null
-
-            if (buffer.hasRemaining()) {
-                val newBuffer = pool.receive()
-                newBuffer.clear()
-                newBuffer.order(order)
-                newBuffer.put(buffer)
-                while (next.hasRemaining() && newBuffer.hasRemaining()) {
-                    newBuffer.put(next.get())
-                }
-
-                newBuffer.flip()
-                buffer = newBuffer
-                if (next.hasRemaining()) remainingBuffer = next
-            } else {
-                buffer = next
-            }
-
-            pool.offer(old)
+            if (!fill()) break
         }
 
         if (buffer.remaining() < required) throw BufferUnderflowException()
+    }
+
+    tailrec suspend fun fill(): Boolean {
+        val next = remainingBuffer ?: receiveImpl() ?: return false
+        if (!next.hasRemaining()) {
+            pool.offer(next)
+            return fill()
+        }
+
+        val old = buffer
+
+        if (buffer.hasRemaining()) {
+            val newBuffer = pool.receive()
+            newBuffer.clear()
+            newBuffer.order(order)
+            newBuffer.put(buffer)
+            while (next.hasRemaining() && newBuffer.hasRemaining()) {
+                newBuffer.put(next.get())
+            }
+
+            newBuffer.flip()
+            buffer = newBuffer
+            remainingBuffer = if (next.hasRemaining()) next else null
+        } else {
+            buffer = next
+            remainingBuffer = null
+        }
+
+        pool.offer(old)
+        return true
     }
 
     protected abstract suspend fun receiveImpl(): ByteBuffer?
