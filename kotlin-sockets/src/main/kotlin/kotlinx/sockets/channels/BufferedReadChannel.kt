@@ -5,14 +5,20 @@ import java.nio.*
 import java.nio.charset.*
 
 abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBuffer>, order: ByteOrder) : ReadChannel {
-    private var remaining: ByteBuffer? = null
-    protected var buffer = Empty
+    private var remainingBuffer: ByteBuffer? = null
+    private var buffer = Empty
 
     var order: ByteOrder = order
         set(newOrder) {
             field = newOrder
             buffer.order(newOrder)
         }
+
+    val remaining: Int
+        get() = buffer.remaining()
+
+    val available: Int
+        get() = buffer.remaining() + (remainingBuffer?.remaining() ?: 0)
 
     suspend override fun read(dst: ByteBuffer): Int {
         if (!dst.hasRemaining()) {
@@ -95,39 +101,57 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
     }
 
     /**
+     * Provides fold operation for every nio ByteBuffer until end or if stop function were called.
+     * All unprocessed bytes in the buffer will be discarded before next iteration except the case when
+     * fold has been stopped via stop function.
+     */
+    suspend fun <A : Any> fold(initial: A, scan: (A, ByteBuffer, stop: () -> Unit) -> A): A {
+        fill(0)
+
+        var state = initial
+        var stopped = false
+        fun stop() {
+            stopped = true
+        }
+        val stopRef = ::stop
+
+        while (!stopped && buffer.hasRemaining()) {
+            state = scan(state, buffer, stopRef)
+            if (stopped) break
+
+            buffer.position(buffer.limit())
+            fill(0)
+        }
+
+        return state
+    }
+
+    /**
      * Reads a line from channel, only ISO-8859-1 is supported
      * Supported line endings are: CR, LF, CR+LF
      */
     suspend fun <A : Appendable> readASCIILineTo(out: A): Boolean {
         var cr = false
 
-        fill(0)
-        if (!buffer.hasRemaining()) return false
-
-        loop@while (true) {
-            if (!buffer.hasRemaining()) {
-                fill(0)
-                if (!buffer.hasRemaining()) break
-            }
-
-            while (buffer.hasRemaining()) {
-                val ch = buffer.get().toChar()
-                when (ch) {
-                    '\r' -> cr = true
-                    '\n' -> break@loop
-                    else -> {
-                        if (cr) {
-                            buffer.position(buffer.position() - 1) // push back
-                            break@loop
-                        }
-
-                        out.append(ch)
+        return fold(false) { rc, bb, stop ->
+            loop@while (bb.hasRemaining()) {
+                val ch = bb.get().toChar()
+                when {
+                    ch == '\r' -> cr = true
+                    ch == '\n' -> {
+                        stop()
+                        break@loop
                     }
+                    cr -> {
+                        bb.position(bb.position() - 1)
+                        break@loop
+                    }
+                    else -> out.append(ch)
                 }
             }
-        }
 
-        return true
+            true
+        }
     }
 
     suspend fun readASCIILine(estimate: Int = 16): String? {
@@ -137,10 +161,10 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
 
     suspend fun fill(required: Int) {
         while (buffer.remaining() < required || !buffer.hasRemaining()) {
-            val next = remaining ?: receiveImpl() ?: break
+            val next = remainingBuffer ?: receiveImpl() ?: break
             val old = buffer
 
-            remaining = null
+            remainingBuffer = null
 
             if (buffer.hasRemaining()) {
                 val newBuffer = pool.receive()
@@ -153,7 +177,7 @@ abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBu
 
                 newBuffer.flip()
                 buffer = newBuffer
-                if (next.hasRemaining()) remaining = next
+                if (next.hasRemaining()) remainingBuffer = next
             } else {
                 buffer = next
             }
