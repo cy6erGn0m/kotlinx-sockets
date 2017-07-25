@@ -15,7 +15,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
     private val selector = lazy { ensureStarted(); Selector.open()!! }
     private val interestQueue = ArrayBlockingQueue<Selectable>(1000)
 
-    private val selectorJob = launch(selectorsCoroutineDispatcher, false) {
+    private val selectorJob = launch(selectorsCoroutineDispatcher, CoroutineStart.LAZY) {
         try {
             selectorLoop(selector.value)
         } catch (expected: ClosedSelectorException) {

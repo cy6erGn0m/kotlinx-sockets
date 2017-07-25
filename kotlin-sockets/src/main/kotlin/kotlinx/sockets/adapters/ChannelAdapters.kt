@@ -45,7 +45,7 @@ fun ReadChannel.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBu
  * @return a job that is not yet started
  */
 fun <C : ReadChannel, R> C.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         receiveLoop(this@receiveTo, channel, pool, transform)
     }
 }
@@ -86,7 +86,7 @@ fun ReadChannel.receiveLinesTo(destination: SendChannel<String>, charset: Charse
  * @return a job that is not yet started
  */
 fun <C : ReadChannel, R> C.receiveLinesTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         receiveLinesLoop(this@receiveLinesTo, destination, charset, pool, transform)
     }
 }
@@ -142,7 +142,7 @@ fun ReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset
  * @return a job that is not yet started
  */
 fun <C : ReadChannel, R> C.receiveTextTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         receiveTextLoop(this@receiveTextTo, destination, charset, pool, transform)
     }
 }
@@ -221,7 +221,7 @@ fun WriteChannel.sendFrom(source: ReceiveChannel<ByteBuffer>, pool: Channel<Byte
  * @return a job that is not yet started
  */
 fun <C : WriteChannel, T> C.sendFrom(source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         writeLoop(this@sendFrom, source, pool, transform)
         shutdownOutput()
     }
@@ -240,7 +240,7 @@ fun WriteChannel.sendTextFrom(channel: ReceiveChannel<CharSequence>, charset: Ch
  * @return a job that is not yet started
  */
 fun <C : WriteChannel, T> C.sendTextFrom(source: ReceiveChannel<T>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(T) -> CharSequence): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         encodeAndWriteLoop(this@sendTextFrom, source, charset, pool, transform)
     }
 }
@@ -370,7 +370,7 @@ fun <T : ASocket, S : Acceptable<T>, R> S.openAcceptChannel(capacity: Int = 100,
  * @return a job that hasn't been started yet
  */
 fun <T : ASocket, S : Acceptable<T>, R> S.acceptSocketsTo(destination: SendChannel<R>, transform: S.(T) -> R): Job {
-    return launch(ioCoroutineDispatcher, start = false) {
+    return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         acceptorLoop(this@acceptSocketsTo, destination, transform)
     }
 }
