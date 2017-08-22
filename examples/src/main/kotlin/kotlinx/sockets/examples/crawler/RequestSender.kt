@@ -41,7 +41,7 @@ class RequestSender(val urls: ReceiveChannel<ConnectionRequest>, val connections
             append("\r\n")
         }
 
-        socket.writeFully(ByteBuffer.wrap(request.toByteArray(Charsets.ISO_8859_1)))
+        socket.openWriteChannel(true).writeFully(ByteBuffer.wrap(request.toByteArray(Charsets.ISO_8859_1)))
 
         return Connection(url, socket, depth)
     }

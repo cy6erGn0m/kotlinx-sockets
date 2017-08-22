@@ -1,9 +1,11 @@
 package kotlinx.sockets.impl
 
+import kotlinx.coroutines.experimental.io.*
+import kotlinx.coroutines.experimental.io.ByteChannel
+import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import java.net.*
-import java.nio.*
 import java.nio.channels.*
 
 internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : BoundDatagramSocket, ConnectedDatagramSocket, SelectableBase() {
@@ -17,53 +19,63 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
     override fun shutdownOutput() {
     }
 
-    suspend override fun receive(dst: ByteBuffer): SocketAddress {
-        while (true) {
-            channel.receive(dst)?.let { interestOp(SelectInterest.READ, false); return it }
+    override fun attachForReading(channel: ByteChannel) {
+        attachForReadingImpl(channel, this.channel, this, selector)
+    }
 
-            interestOp(SelectInterest.READ, true)
-            selector.select(this, SelectInterest.READ)
+    override fun attachForWriting(channel: ByteChannel) {
+        attachForWritingImpl(channel, this.channel, this, selector)
+    }
+
+    suspend override fun receive(): Datagram {
+        val buffer = ByteBuffer.allocateDirect(65536)
+        val address = channel.receive(buffer) ?: return receiveSuspend(buffer)
+
+        interestOp(SelectInterest.READ, false)
+        buffer.flip()
+        return Datagram(buildPacket { writeFully(buffer) }, address)
+    }
+
+    private tailrec suspend fun receiveSuspend(buffer: ByteBuffer): Datagram {
+        interestOp(SelectInterest.READ, true)
+        selector.select(this, SelectInterest.READ)
+
+        val address = channel.receive(buffer) ?: return receiveSuspend(buffer)
+
+        interestOp(SelectInterest.READ, false)
+        buffer.flip()
+        return Datagram(buildPacket { writeFully(buffer) }, address)
+    }
+
+    suspend override fun receive(dst: ByteBuffer): SocketAddress {
+        val datagram = receive()
+        datagram.packet.readLazy(dst)
+        return datagram.address
+    }
+
+    suspend override fun send(datagram: Datagram) {
+        val buffer = ByteBuffer.allocateDirect(datagram.packet.remaining)
+        datagram.packet.readLazy(buffer)
+        buffer.flip()
+
+        val rc = channel.send(buffer, datagram.address)
+        if (rc == 0) {
+            sendSuspend(buffer, datagram.address)
+        } else {
+            interestOp(SelectInterest.WRITE, false)
         }
     }
 
-    suspend override fun read(dst: ByteBuffer): Int {
-        while (true) {
-            val rc = channel.read(dst)
+    private tailrec suspend fun sendSuspend(buffer: ByteBuffer, address: SocketAddress) {
+        interestOp(SelectInterest.WRITE, true)
+        selector.select(this, SelectInterest.WRITE)
 
-            if (rc > 0) {
-                interestOp(SelectInterest.READ, false)
-                return rc
-            }
-
-            interestOp(SelectInterest.READ, true)
-            selector.select(this, SelectInterest.READ)
-        }
+        if (channel.send(buffer, address) == 0) sendSuspend(buffer, address)
+        else interestOp(SelectInterest.WRITE, false)
     }
 
     suspend override fun write(src: ByteBuffer, target: SocketAddress) {
-        while (true) {
-            val rc = channel.send(src, target)
-            if (rc > 0) {
-                interestOp(SelectInterest.WRITE, false)
-                return
-            }
-
-            interestOp(SelectInterest.WRITE, true)
-            selector.select(this, SelectInterest.WRITE)
-        }
-    }
-
-    suspend override fun write(src: ByteBuffer) {
-        while (true) {
-            val rc = channel.write(src)
-            if (rc > 0) {
-                interestOp(SelectInterest.WRITE, false)
-                return
-            }
-
-            interestOp(SelectInterest.WRITE, true)
-            selector.select(this, SelectInterest.WRITE)
-        }
+        send(Datagram(buildPacket { writeFully(src) }, target))
     }
 
     override fun close() {

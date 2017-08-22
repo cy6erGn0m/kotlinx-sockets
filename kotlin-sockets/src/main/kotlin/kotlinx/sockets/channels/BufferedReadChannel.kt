@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
 import java.nio.charset.*
 
+@Deprecated("", ReplaceWith("ByteReadChannel", "kotlinx.coroutines.experimental.io.ByteReadChannel"))
 abstract class BufferedReadChannel internal constructor(val pool: Channel<ByteBuffer>, order: ByteOrder) : ReadChannel {
     private var remainingBuffer: ByteBuffer? = null
     private var buffer = Empty

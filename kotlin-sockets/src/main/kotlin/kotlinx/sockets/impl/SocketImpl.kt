@@ -1,9 +1,9 @@
 package kotlinx.sockets.impl
 
+import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
-import java.nio.*
 import java.nio.channels.*
 
 internal class SocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), Socket {
@@ -35,39 +35,12 @@ internal class SocketImpl<out S : SocketChannel>(override val channel: S, val se
         return this
     }
 
-    override suspend fun read(dst: ByteBuffer): Int {
-        while (true) {
-            val rc = channel.read(dst)
-
-            if (rc == 0 && dst.hasRemaining()) {
-                wantMoreBytesRead()
-                selector.select(this, SelectInterest.READ)
-            } else {
-                wantMoreBytesRead(false)
-                return rc
-            }
-        }
+    override fun attachForReading(channel: ByteChannel) {
+        attachForReadingImpl(channel, this.channel, this, selector)
     }
 
-    override suspend fun write(src: ByteBuffer) {
-        while (true) {
-            val rc = channel.write(src)
-
-            if (rc == 0 && src.hasRemaining()) {
-                wantMoreSpaceForWrite()
-                selector.select(this, SelectInterest.WRITE)
-            } else {
-                wantMoreSpaceForWrite(false)
-                return
-            }
-        }
-    }
-
-    override fun shutdownOutput() {
-        try {
-            channel.shutdownOutput()
-        } catch (ignore: ClosedChannelException) {
-        }
+    override fun attachForWriting(channel: ByteChannel) {
+        attachForWritingImpl(channel, this.channel, this, selector)
     }
 
     override fun close() {
@@ -80,13 +53,5 @@ internal class SocketImpl<out S : SocketChannel>(override val channel: S, val se
 
     private fun wantConnect(state: Boolean = true) {
         interestOp(SelectInterest.CONNECT, state)
-    }
-
-    private fun wantMoreBytesRead(state: Boolean = true) {
-        interestOp(SelectInterest.READ, state)
-    }
-
-    private fun wantMoreSpaceForWrite(state: Boolean = true) {
-        interestOp(SelectInterest.WRITE, state)
     }
 }

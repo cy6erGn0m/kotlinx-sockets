@@ -5,6 +5,7 @@ import kotlinx.coroutines.experimental.channels.*
 import java.nio.*
 import java.nio.charset.*
 
+@Deprecated("", ReplaceWith("ByteWriteChannel", "kotlinx.coroutines.experimental.io.ByteWriteChannel"))
 abstract class BufferedWriteChannel internal constructor(val pool: Channel<ByteBuffer>, order: ByteOrder) : WriteChannel {
 
     private var buffer: ByteBuffer = Empty

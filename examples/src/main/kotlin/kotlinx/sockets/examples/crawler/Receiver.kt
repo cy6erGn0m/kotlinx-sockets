@@ -22,7 +22,10 @@ class Receiver(val connections: ReceiveChannel<Connection>, val parse: SendChann
         try {
             while (true) {
                 val c = connections.receiveOrNull() ?: break
-                if (c.depth > 2) continue
+                if (c.depth > 2) {
+                    c.close()
+                    continue
+                }
 
                 launch(CommonPool) {
                     c.socket.receiveTo(incoming, pool) { buffer -> Event.Data(c, buffer) }.apply {

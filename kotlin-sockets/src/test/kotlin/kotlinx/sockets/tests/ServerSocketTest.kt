@@ -1,11 +1,11 @@
 package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import org.junit.*
 import org.junit.rules.*
-import java.nio.*
 import java.nio.channels.*
 import java.util.concurrent.*
 import kotlin.concurrent.*
@@ -47,13 +47,7 @@ class ServerSocketTest {
     @Test
     fun testRead() {
         server { client ->
-            val bb = ByteBuffer.allocate(3)
-
-            assertEquals(3, client.read(bb))
-            assertEquals("123", String(bb.array()))
-            bb.clear()
-
-            assertEquals(-1, client.read(bb))
+            assertEquals("123", client.openReadChannel().readASCIILine())
         }
 
         client { socket ->
@@ -65,8 +59,10 @@ class ServerSocketTest {
 
     @Test
     fun testWrite() {
-        val s = server { client ->
-            client.write(ByteBuffer.wrap("123".toByteArray()))
+        server { client ->
+            val channel = client.openWriteChannel(true)
+            channel.writeStringUtf8("123")
+            channel.close()
         }
 
         client { socket ->

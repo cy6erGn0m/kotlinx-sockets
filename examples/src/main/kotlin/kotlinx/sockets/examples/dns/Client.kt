@@ -1,22 +1,17 @@
 package kotlinx.sockets.examples.dns
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.channels.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
-import kotlinx.sockets.adapters.*
-import kotlinx.sockets.channels.*
 import java.net.*
-import java.nio.*
 import java.util.*
 
 fun main(args: Array<String>) {
     runBlocking {
-        val pool = runDefaultByteBufferPool()
-
-//            val dnsServer = inet4address(198, 41, 0, 4) // root DNS server
+            val dnsServer = inet4address(198, 41, 0, 4) // root DNS server
 //            val dnsServer = inet4address(8, 8, 8, 8) // google DNS server
-        val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
-        val results = resolve(pool, dnsServer, "kotlinlang.org", Type.A, tcp = true)
+//        val dnsServer = inet4address(77, 88, 8, 8) // yandex DNS server
+        val results = resolve(dnsServer, "kotlinlang.org", Type.A, tcp = true)
 
         if (results.answers.isNotEmpty()) {
             println("Answers:")
@@ -54,7 +49,7 @@ private fun inet4address(a: Int, b: Int, c: Int, d: Int): InetAddress {
     return InetAddress.getByAddress(byteArrayOf(a.toByte(), b.toByte(), c.toByte(), d.toByte()))
 }
 
-private suspend fun resolve(pool: Channel<ByteBuffer>, server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
+private suspend fun resolve(server: InetAddress, host: String, type: Type, tcp: Boolean): Message {
     val remoteAddress = InetSocketAddress(server, 53)
     val client: ReadWriteSocket = if (tcp) {
         aSocket().tcp().tcpNoDelay().connect(remoteAddress)
@@ -63,14 +58,14 @@ private suspend fun resolve(pool: Channel<ByteBuffer>, server: InetAddress, host
     }
 
     return client.use {
-        val output = client.openSendChannel(pool).bufferedWrite(pool, ByteOrder.BIG_ENDIAN)
-        val input = client.openReceiveChannel(pool).bufferedRead(pool, ByteOrder.BIG_ENDIAN)
+        val output = client.openWriteChannel().apply { writeByteOrder = ByteOrder.BIG_ENDIAN }
+        val input = client.openReadChannel().apply { readByteOrder = ByteOrder.BIG_ENDIAN }
 
         doResolve(output, input, host, type, tcp)
     }
 }
 
-private suspend fun doResolve(out: BufferedWriteChannel, input: BufferedReadChannel, host: String, type: Type, tcp: Boolean): Message {
+private suspend fun doResolve(out: ByteWriteChannel, input: ByteReadChannel, host: String, type: Type, tcp: Boolean): Message {
     val rnd = Random()
     val id = (rnd.nextInt() and 0xffff).toShort()
 

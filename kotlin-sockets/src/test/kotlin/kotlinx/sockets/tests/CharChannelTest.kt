@@ -1,60 +1,15 @@
 package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.sockets.channels.*
-import kotlinx.sockets.channels.impl.*
+import kotlinx.coroutines.experimental.io.*
 import org.junit.*
 import org.junit.rules.*
-import java.nio.*
-import java.nio.channels.*
 import java.util.concurrent.*
 import kotlin.test.*
 
 class CharChannelTest {
-    companion object {
-        val EmptyBuffer = CharBuffer.allocate(0)!!
-    }
-
     @get:Rule
     val timeout = Timeout(15L, TimeUnit.SECONDS)
-
-    @Test
-    fun charReadChannel() {
-        val rc = ByteArrayReadChannel("abc".toByteArray()).asCharChannel()
-        val cb = CharBuffer.allocate(10)
-
-        runBlocking {
-            assertEquals(0, rc.read(EmptyBuffer))
-            assertEquals(3, rc.read(cb))
-            assertEquals(-1, rc.read(cb))
-            assertEquals(-1, rc.read(EmptyBuffer))
-            cb.flip()
-
-            assertEquals("abc", cb.toString())
-        }
-    }
-
-    @Test
-    fun charReadChannelParts() {
-        val rc = ByteArrayReadChannel("abc".toByteArray()).asCharChannel()
-        val cb = CharBuffer.allocate(1)
-
-        runBlocking {
-            assertEquals(1, rc.read(cb))
-            assertEquals('a', cb[0])
-
-            cb.clear()
-            assertEquals(1, rc.read(cb))
-            assertEquals('b', cb[0])
-
-            cb.clear()
-            assertEquals(1, rc.read(cb))
-            assertEquals('c', cb[0])
-
-            cb.clear()
-            assertEquals(-1, rc.read(cb))
-        }
-    }
 
     @Test
     fun charReadChannelReadLine() {
@@ -77,88 +32,59 @@ class CharChannelTest {
     }
 
     @Test
-    fun testReachChannelReadLineBadLuck() {
-        // if we have unfortunate buffer size then \r and \n could be divided so we have to ensure
-        // that we are handling it properly (we shouldn't produce extra-lines in this case)
-
-        testReadLine("1\r\n2", "1", "", bufferSize = 1)
-        testReadLine("1\r\n2", "1", "2", bufferSize = 2)
-        testReadLine("1\r\n2", "1", "", bufferSize = 3)
-
-        testReadLine("1\r\n", "1", "", bufferSize = 1)
-        testReadLine("1\r\n", "1", "", bufferSize = 2)
-        testReadLine("1\r\n", "1", "", bufferSize = 3)
-    }
-
-    @Test
     fun testBufferedReadLine() {
         testReadLineBuffered("") {
-            assertNull(readLine())
-            assertNull(readLine())
+            assertNull(readUTF8Line())
+            assertNull(readUTF8Line())
         }
 
         testReadLineBuffered("a") {
-            assertEquals("a", readLine())
-            assertNull(readLine())
+            assertEquals("a", readUTF8Line())
+            assertNull(readUTF8Line( ))
         }
 
         testReadLineBuffered("a\n") {
-            assertEquals("a", readLine())
+            assertEquals("a", readUTF8Line())
 //            assertEquals("", readLine())
-            assertNull(readLine())
+            assertNull(readUTF8Line( ))
         }
 
         testReadLineBuffered("a\nb") {
-            assertEquals("a", readLine())
-            assertEquals("b", readLine())
-            assertNull(readLine())
+            assertEquals("a", readUTF8Line())
+            assertEquals("b", readUTF8Line())
+            assertNull(readUTF8Line( ))
         }
 
         testReadLineBuffered("aa\nbb\n") {
-            assertEquals("aa", readLine())
-            assertEquals("bb", readLine())
+            assertEquals("aa", readUTF8Line())
+            assertEquals("bb", readUTF8Line())
 //            assertEquals("", readLine())
-            assertNull(readLine())
+            assertNull(readUTF8Line( ))
         }
 
         testReadLineBuffered("a\nb") {
-            assertEquals("a", readLine())
-            assertEquals('b', read().toChar())
-            assertEquals(-1, read())
+            assertEquals("a", readUTF8Line())
+            assertEquals('b', readByte().toChar())
         }
     }
 
     private fun testReadLine(source: String, expected: String, remaining: String, bufferSize: Int = 8192) {
         runBlocking {
-            val (line, rem) = ByteArrayReadChannel(source.toByteArray()).asCharChannel().readLine(CharBuffer.allocate(bufferSize).apply { position(limit()) })
+            val ch = ByteReadChannel(source.toByteArray())
+            val line = ch.readUTF8Line().orEmpty()
+            val bb = ByteBuffer.allocate(bufferSize)
+            ch.readAvailable(bb)
+            bb.flip()
+            val rem = Charsets.UTF_8.decode(bb)
+
             assertEquals(expected, line, "line text")
             assertEquals(remaining, rem.toString(), "remaining buffer")
         }
     }
 
-    private fun testReadLineBuffered(source: String, block: suspend BufferedCharReadChannel.() -> Unit) {
+    private fun testReadLineBuffered(source: String, block: suspend ByteReadChannel.() -> Unit) {
         runBlocking {
-            val ch = ByteArrayReadChannel(source.toByteArray()).asCharChannel().buffered()
-            block(ch)
-        }
-    }
-
-    private class ByteArrayReadChannel(array: ByteArray) : ReadChannel {
-        private var buffer: ByteArray? = array
-        private var position = 0
-
-        suspend override fun read(dst: ByteBuffer): Int {
-            buffer?.let {
-                val remaining = it.size - position
-                if (remaining <= 0) return -1
-                val size = minOf(dst.remaining(), remaining)
-                dst.put(it, position, size)
-                position += size
-
-                return size
-            }
-
-            throw ClosedChannelException()
+            block(ByteReadChannel(source.toByteArray()))
         }
     }
 }

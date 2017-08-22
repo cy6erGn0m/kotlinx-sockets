@@ -2,13 +2,12 @@ package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
-import kotlinx.coroutines.experimental.selects.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.adapters.*
 import kotlinx.sockets.selector.*
 import org.junit.*
 import org.junit.rules.*
-import java.nio.*
 import java.util.concurrent.*
 import kotlin.test.*
 
@@ -54,33 +53,38 @@ class SocketChannelTest {
     fun readAndWrite() {
         val server = launch(CommonPool) {
             serverAccept.receive().use { client ->
-                val bb = ByteBuffer.allocate(10)
+                val input = client.openReadChannel()
+                val out = client.openWriteChannel(true)
 
-                assertEquals(3, client.read(bb))
-                bb.flip()
+                val buffer = ByteBuffer.allocate(512)
+                while (true) {
+                    buffer.clear()
+                    val rc = input.readAvailable(buffer)
+                    if (rc == -1) break
+                    buffer.flip()
 
-                for (i in bb.position() .. bb.limit() - 1) {
-                    bb.put(i, (bb.get(i) + 1).toByte())
+                    for (i in buffer.position() until buffer.limit()) {
+                        val b = buffer.get(i).toInt() and 0xff
+                        val n = if (b == 0x0d || b == 0x0a) b else b + 1
+                        buffer.put(i, n.toByte())
+                    }
+
+                    out.writeFully(buffer)
                 }
-
-                client.write(bb)
             }
         }
 
         runBlocking {
             try {
                 aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
-                    val receive = socket.openReceiveChannel(pool)
-                    val send = socket.openSendChannel(pool)
+                    val input = socket.openReadChannel()
+                    val output = socket.openWriteChannel(true)
 
                     try {
-                        send.send(ByteBuffer.wrap("123".toByteArray()))
-
-                        val b = receive.receive()
-                        assertEquals(3, b.remaining())
-                        assertEquals("234", String(b.array(), b.arrayOffset() + b.position(), b.remaining()))
+                        output.writeStringUtf8("123\n")
+                        assertEquals("234", input.readASCIILine())
                     } finally {
-                        send.close()
+                        output.close()
                     }
                 }
             } finally {
@@ -93,31 +97,36 @@ class SocketChannelTest {
     fun textWrite() {
         val server = launch(CommonPool) {
             serverAccept.receive().use { client ->
-                val bb = ByteBuffer.allocate(10)
+                val input = client.openReadChannel()
+                val out = client.openWriteChannel(true)
 
-                assertEquals(3, client.read(bb))
-                bb.flip()
+                val buffer = ByteBuffer.allocate(512)
+                while (true) {
+                    buffer.clear()
+                    val rc = input.readAvailable(buffer)
+                    if (rc == -1) break
+                    buffer.flip()
 
-                for (i in bb.position() .. bb.limit() - 1) {
-                    bb.put(i, (bb.get(i) + 1).toByte())
+                    for (i in buffer.position() until buffer.limit()) {
+                        val b = buffer.get(i).toInt() and 0xff
+                        val n = if (b == 0x0d || b == 0x0a) b else b + 1
+                        buffer.put(i, n.toByte())
+                    }
+
+                    out.writeFully(buffer)
                 }
-
-                client.write(bb)
             }
         }
 
         runBlocking {
             try {
                 aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
-                    val receive = socket.openReceiveChannel(pool)
-                    val send = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
+                    val receive = socket.openReadChannel()
+                    val send = socket.openWriteChannel(true)
 
                     try {
-                        send.send("123")
-
-                        val b = receive.receive()
-                        assertEquals(3, b.remaining())
-                        assertEquals("234", String(b.array(), b.arrayOffset() + b.position(), b.remaining()))
+                        send.writeStringUtf8("123\n")
+                        assertEquals("234", receive.readASCIILine())
                     } finally {
                         send.close()
                     }
@@ -158,52 +167,6 @@ class SocketChannelTest {
                 }
 
                 clientJob.join()
-            }
-        }
-
-        runBlocking {
-            clientJob.joinOrFail()
-            server.joinOrFail()
-        }
-    }
-
-    @Test
-    fun testLinesReceive() {
-        val clientJob = launch(CommonPool) {
-            aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
-                val input = socket.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
-                val output = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
-
-                try {
-                    output.send("abc")
-                    output.send("\ndef\n123\n")
-
-                    assertEquals("ABC", input.receiveOrNull())
-                    assertEquals("DEF", input.receiveOrNull())
-                    assertEquals("123", input.receiveOrNull())
-                } finally {
-                    output.close()
-                }
-            }
-        }
-
-        val server = launch(CommonPool) {
-            serverAccept.receive().use { client ->
-                val input = client.openLinesReceiveChannel(Charsets.ISO_8859_1, pool)
-                val output = client.openTextSendChannel(Charsets.ISO_8859_1, pool)
-
-                try {
-                    while (true) {
-                        val line = select<String?> {
-                            input.onReceiveOrNull { it }
-                            clientJob.onJoin { null }
-                        } ?: break
-
-                        output.send(line.toUpperCase() + "\n")
-                    }
-                } finally {
-                    output.close()
-                }
             }
         }
 

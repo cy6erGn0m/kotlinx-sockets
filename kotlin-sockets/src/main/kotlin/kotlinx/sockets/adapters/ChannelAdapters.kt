@@ -3,10 +3,10 @@ package kotlinx.sockets.adapters
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.io.*
+import kotlinx.coroutines.experimental.io.ByteBuffer
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
-import kotlinx.sockets.channels.*
-import kotlinx.sockets.channels.impl.*
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.*
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.*
 /**
  * Opens a receive channel of specified [capacity] and starts a producer job to populate it.
  */
-fun ReadChannel.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<ByteBuffer> {
+fun ByteReadChannel.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<ByteBuffer> {
     return openReceiveChannel(pool, capacity) { it }
 }
 
@@ -25,7 +25,7 @@ fun ReadChannel.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2)
  * Opens a receive channel of specified [capacity] and starts a producer job to populate it using mapper
  * function [transform].
  */
-fun <C : ReadChannel, R> C.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(ByteBuffer) -> R): ProducerJob<R> {
+fun <C : ByteReadChannel, R> C.openReceiveChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(ByteBuffer) -> R): ProducerJob<R> {
     return produce(ioCoroutineDispatcher, capacity) {
         receiveLoop(this@openReceiveChannel, channel, pool, transform)
     }
@@ -35,8 +35,12 @@ fun <C : ReadChannel, R> C.openReceiveChannel(pool: Channel<ByteBuffer>, capacit
  * Creates a job to receive that takes byte buffers from a [pool], reads bytes to a buffer and sends the buffer to [channel]
  * @return a job that is not yet started
  */
-fun ReadChannel.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
+fun ByteReadChannel.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
     return receiveTo(channel, pool, { it })
+}
+
+fun AReadable.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
+    return openReadChannel().receiveTo(channel, pool)
 }
 
 /**
@@ -44,19 +48,25 @@ fun ReadChannel.receiveTo(channel: SendChannel<ByteBuffer>, pool: Channel<ByteBu
  * transforms it by [transform] mapper function and sends result [R] to [channel].
  * @return a job that is not yet started
  */
-fun <C : ReadChannel, R> C.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R): Job {
+fun <C : ByteReadChannel, R> C.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R): Job {
     return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         receiveLoop(this@receiveTo, channel, pool, transform)
     }
 }
 
-private suspend fun <C : ReadChannel, R> receiveLoop(source: C, channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R) {
+fun <S : AReadable, R> S.receiveTo(channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: S.(ByteBuffer) -> R): Job {
+    return openReadChannel().receiveTo(channel, pool) {
+        transform(this@receiveTo, it)
+    }
+}
+
+private suspend fun <C : ByteReadChannel, R> receiveLoop(source: C, channel: SendChannel<R>, pool: Channel<ByteBuffer>, transform: C.(ByteBuffer) -> R) {
     while (true) {
         val bb = pool.receive()
         bb.clear()
 
         val rc = try {
-            source.read(bb)
+            source.readAvailable(bb)
         } catch (t: Throwable) {
             pool.offer(bb)
             throw t
@@ -76,44 +86,64 @@ private suspend fun <C : ReadChannel, R> receiveLoop(source: C, channel: SendCha
  * Creates a job to receive lines decoded by [charset] decoder to the specified [destination] channel.
  * @return a job that is not yet started
  */
-fun ReadChannel.receiveLinesTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
-    return receiveLinesTo(destination, charset, pool) { it }
+fun ByteReadChannel.receiveLinesTo(destination: SendChannel<String>): Job {
+    return receiveLinesTo(destination) { it }
+}
+
+@Deprecated("charset and pool specification is not supported anymore", level = DeprecationLevel.ERROR)
+fun ByteReadChannel.receiveLinesTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
+    TODO()
 }
 
 /**
- * Creates a job to receive lines decoded by [charset] decoder to the specified [destination] channel passing through
+ * Creates a job to receive lines decoded by UTF-8 decoder to the specified [destination] channel passing through
  * the given [transform] function.
  * @return a job that is not yet started
  */
-fun <C : ReadChannel, R> C.receiveLinesTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
+fun <C : ByteReadChannel, R> C.receiveLinesTo(destination: SendChannel<R>, transform: C.(String) -> R): Job {
     return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
-        receiveLinesLoop(this@receiveLinesTo, destination, charset, pool, transform)
+        receiveLinesLoop(this@receiveLinesTo, destination, transform)
     }
+}
+
+@Deprecated("charset and pool specification is not supported anymore", level = DeprecationLevel.ERROR)
+fun <C : ByteReadChannel, R> C.receiveLinesTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
+    TODO()
 }
 
 /**
  * Opens a channel of lines decoded by [charset] decoder.
  * @return a running [ProducerJob]
  */
-fun ReadChannel.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
-    return openLinesReceiveChannel(charset, pool, capacity) { it }
+fun ByteReadChannel.openLinesReceiveChannel(capacity: Int = 2): ProducerJob<String> {
+    return openLinesReceiveChannel(capacity) { it }
+}
+
+@Deprecated("charset and pool specification is not supported anymore", level = DeprecationLevel.ERROR)
+fun ByteReadChannel.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
+    TODO()
 }
 
 /**
- * Opens a channel of lines decoded by [charset] decoder and mapped by [transform] function.
+ * Opens a channel of lines decoded by UTF-8 decoder and mapped by [transform] function.
  * @return a running [ProducerJob]
  */
-fun <C : ReadChannel, R> C.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
+fun <C : ByteReadChannel, R> C.openLinesReceiveChannel(capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
     return produce(ioCoroutineDispatcher, capacity) {
-        receiveLinesLoop(this@openLinesReceiveChannel, this, charset, pool, transform)
+        receiveLinesLoop(this@openLinesReceiveChannel, this, transform)
     }
+}
+
+@Deprecated("charset and pool specification is not supported anymore", level = DeprecationLevel.ERROR)
+fun <C : ByteReadChannel, R> C.openLinesReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
+    TODO()
 }
 
 /**
  * Opens a channel of text parts decoded by [charset] decoder.
  * @return a running [ProducerJob]
  */
-fun ReadChannel.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
+fun ByteReadChannel.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ProducerJob<String> {
     return openTextReceiveChannel(charset, pool, capacity) { it }
 }
 
@@ -121,7 +151,7 @@ fun ReadChannel.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffe
  * Opens a channel of text parts decoded by [charset] decoder and mapped by [transform] function.
  * @return a running [ProducerJob]
  */
-fun <C : ReadChannel, R> C.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
+fun <C : ByteReadChannel, R> C.openTextReceiveChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(String) -> R): ProducerJob<R> {
     return produce(ioCoroutineDispatcher, capacity) {
         receiveTextLoop(this@openTextReceiveChannel, this, charset, pool, transform)
     }
@@ -131,7 +161,7 @@ fun <C : ReadChannel, R> C.openTextReceiveChannel(charset: Charset, pool: Channe
  * Creates a job to receive text decoded by [charset] decoder to the specified [destination] channel.
  * @return a job that is not yet started
  */
-fun ReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
+fun ByteReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset, pool: Channel<ByteBuffer>): Job {
     return receiveTextTo(destination, charset, pool) { it }
 }
 
@@ -141,27 +171,35 @@ fun ReadChannel.receiveTextTo(destination: SendChannel<String>, charset: Charset
  *
  * @return a job that is not yet started
  */
-fun <C : ReadChannel, R> C.receiveTextTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
+fun <C : ByteReadChannel, R> C.receiveTextTo(destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R): Job {
     return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         receiveTextLoop(this@receiveTextTo, destination, charset, pool, transform)
     }
 }
 
-private suspend fun <C : ReadChannel, R> receiveTextLoop(source: C, destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R) {
+private suspend fun <C : ByteReadChannel, R> receiveTextLoop(source: C, destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R) {
     val buffer = pool.receive()
-    val chs = source.asCharChannel(charset, buffer)
 
+    val decoder = charset.newDecoder()
     val blockBuffer = pool.receive().apply { clear() }
     val charBuffer = blockBuffer.asCharBuffer()
 
     try {
         while (true) {
-            charBuffer.clear()
-            if (chs.read(charBuffer) == -1) break
-            charBuffer.flip()
-            val text = charBuffer.toString()
+            buffer.clear()
 
-            destination.send(transform(source, text))
+            val eof = source.readAvailable(buffer) == -1
+            buffer.flip()
+
+            while (buffer.hasRemaining()) {
+                charBuffer.clear()
+                decoder.decode(buffer, charBuffer, eof)?.takeIf { it.isMalformed || it.isUnmappable }?.throwException()
+                charBuffer.flip()
+                val text = charBuffer.toString()
+                destination.send(transform(source, text))
+            }
+
+            if (eof) break
         }
     } finally {
         pool.offer(buffer)
@@ -169,19 +207,10 @@ private suspend fun <C : ReadChannel, R> receiveTextLoop(source: C, destination:
     }
 }
 
-private suspend fun <C : ReadChannel, R> receiveLinesLoop(source: C, destination: SendChannel<R>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(String) -> R) {
-    val buffer = pool.receive()
-    val charBuffer = pool.receive()
-    val chs = source.asCharChannel(charset, buffer).buffered { charBuffer.asCharBuffer() }
-
-    try {
-        while (true) {
-            val line = chs.readLine() ?: break
-            destination.send(transform(source, line))
-        }
-    } finally {
-        pool.offer(buffer)
-        pool.offer(charBuffer)
+private suspend fun <C : ByteReadChannel, R> receiveLinesLoop(source: C, destination: SendChannel<R>, transform: C.(String) -> R) {
+    while (true) {
+        val line = source.readUTF8Line() ?: break
+        destination.send(transform(source, line))
     }
 }
 
@@ -191,7 +220,7 @@ private suspend fun <C : ReadChannel, R> receiveLinesLoop(source: C, destination
  *
  * @return a running actor job with channel
  */
-fun WriteChannel.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): ActorJob<ByteBuffer> {
+fun ByteWriteChannel.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): ActorJob<ByteBuffer> {
     return openSendChannel(pool, capacity) { it }
 }
 
@@ -201,10 +230,10 @@ fun WriteChannel.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2): 
  *
  * @return a running actor job with channel
  */
-fun <C : WriteChannel, T> C.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> ByteBuffer): ActorJob<T> {
+fun <C : ByteWriteChannel, T> C.openSendChannel(pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> ByteBuffer): ActorJob<T> {
     return actor(ioCoroutineDispatcher, capacity) {
         writeLoop(this@openSendChannel, this, pool, transform)
-        shutdownOutput()
+        close()
     }
 }
 
@@ -212,7 +241,7 @@ fun <C : WriteChannel, T> C.openSendChannel(pool: Channel<ByteBuffer>, capacity:
  * Creates a job to take byte buffers from [source] channel and write to the socket.
  * @return a job that is not yet started
  */
-fun WriteChannel.sendFrom(source: ReceiveChannel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
+fun ByteWriteChannel.sendFrom(source: ReceiveChannel<ByteBuffer>, pool: Channel<ByteBuffer>): Job {
     return sendFrom(source, pool, { it })
 }
 
@@ -220,10 +249,10 @@ fun WriteChannel.sendFrom(source: ReceiveChannel<ByteBuffer>, pool: Channel<Byte
  * Creates a job to [transform] messages of type [T] from [source] channel to bytes and write them to the socket.
  * @return a job that is not yet started
  */
-fun <C : WriteChannel, T> C.sendFrom(source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer): Job {
+fun <C : ByteWriteChannel, T> C.sendFrom(source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer): Job {
     return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         writeLoop(this@sendFrom, source, pool, transform)
-        shutdownOutput()
+        close()
     }
 }
 
@@ -231,7 +260,7 @@ fun <C : WriteChannel, T> C.sendFrom(source: ReceiveChannel<T>, pool: Channel<By
  * Creates a job to take text blocks from [channel], encode by [charset] encoder and write to the socket.
  * @return a job that is not yet started
  */
-fun WriteChannel.sendTextFrom(channel: ReceiveChannel<CharSequence>, charset: Charset, pool: Channel<ByteBuffer>): Job {
+fun ByteWriteChannel.sendTextFrom(channel: ReceiveChannel<CharSequence>, charset: Charset, pool: Channel<ByteBuffer>): Job {
     return sendTextFrom(channel, charset, pool, { it })
 }
 
@@ -239,13 +268,13 @@ fun WriteChannel.sendTextFrom(channel: ReceiveChannel<CharSequence>, charset: Ch
  * Creates a job to transform messages of type [T] from [source] channel, encode by [charset] encoder and write to the socket.
  * @return a job that is not yet started
  */
-fun <C : WriteChannel, T> C.sendTextFrom(source: ReceiveChannel<T>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(T) -> CharSequence): Job {
+fun <C : ByteWriteChannel, T> C.sendTextFrom(source: ReceiveChannel<T>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(T) -> CharSequence): Job {
     return launch(ioCoroutineDispatcher, start = CoroutineStart.LAZY) {
         encodeAndWriteLoop(this@sendTextFrom, source, charset, pool, transform)
     }
 }
 
-private suspend fun <C : WriteChannel, T> writeLoop(destination: C, source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer) {
+private suspend fun <C : ByteWriteChannel, T> writeLoop(destination: C, source: ReceiveChannel<T>, pool: Channel<ByteBuffer>, transform: C.(T) -> ByteBuffer) {
     var pushBack: ByteBuffer? = null
 
     while (true) {
@@ -293,7 +322,7 @@ private suspend fun <C : WriteChannel, T> writeLoop(destination: C, source: Rece
  *
  * @return a running actor job with channel
  */
-fun WriteChannel.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ActorJob<CharSequence> {
+fun ByteWriteChannel.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2): ActorJob<CharSequence> {
     return openTextSendChannel(charset, pool, capacity) { it }
 }
 
@@ -303,14 +332,14 @@ fun WriteChannel.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>
  *
  * @return a running actor job with channel
  */
-fun <C : WriteChannel, T> C.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> CharSequence): ActorJob<T> {
+fun <C : ByteWriteChannel, T> C.openTextSendChannel(charset: Charset, pool: Channel<ByteBuffer>, capacity: Int = 2, transform: C.(T) -> CharSequence): ActorJob<T> {
     return actor(ioCoroutineDispatcher, capacity) {
         encodeAndWriteLoop(this@openTextSendChannel, this, charset, pool, transform)
-        shutdownOutput()
+        close()
     }
 }
 
-private suspend fun <C : WriteChannel, T> encodeAndWriteLoop(destination: C, source: ReceiveChannel<T>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(T) -> CharSequence) {
+private suspend fun <C : ByteWriteChannel, T> encodeAndWriteLoop(destination: C, source: ReceiveChannel<T>, charset: Charset, pool: Channel<ByteBuffer>, transform: C.(T) -> CharSequence) {
     val encoder = charset.newEncoder()!!
     var pushBack: CharBuffer? = null
 
@@ -338,11 +367,9 @@ private suspend fun <C : WriteChannel, T> encodeAndWriteLoop(destination: C, sou
     }
 }
 
-private suspend fun writeImpl(socket: WriteChannel, pool: Channel<ByteBuffer>, buffer: ByteBuffer) {
+private suspend fun writeImpl(socket: ByteWriteChannel, pool: Channel<ByteBuffer>, buffer: ByteBuffer) {
     try {
-        while (buffer.hasRemaining()) {
-            socket.write(buffer)
-        }
+        socket.writeFully(buffer)
     } finally {
         pool.offer(buffer)
     }

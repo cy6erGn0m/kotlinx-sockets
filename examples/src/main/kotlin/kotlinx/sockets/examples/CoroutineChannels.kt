@@ -1,14 +1,12 @@
 package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.channels.*
+import kotlinx.coroutines.experimental.io.*
+import kotlinx.sockets.*
 import kotlinx.sockets.adapters.*
 import java.net.*
-import java.nio.*
 
 fun main(args: Array<String>) {
-    val pool = runUnlimitedPool()
-
     runBlocking(CommonPool) {
         val (hosts, sockets) = openConnector({ it: String -> InetSocketAddress(it, 80) }, { a, s -> Pair(a, s) })
         hosts.send("google.com")
@@ -17,33 +15,26 @@ fun main(args: Array<String>) {
         while (true) {
             val (host, socket) = sockets.receiveOrNull() ?: break
 
-            val out = socket.openTextSendChannel(Charsets.ISO_8859_1, pool)
-            val input = socket.openReceiveChannel(pool)
+            val out = socket.openWriteChannel(false)
+            val input = socket.openReadChannel()
 
-            out.send("GET / HTTP/1.1\r\n")
-            out.send("Host: $host\r\n")
-            out.send("Connection: close\r\n")
-            out.send("\r\n")
+            out.writeStringUtf8("GET / HTTP/1.1\r\n")
+            out.writeStringUtf8("Host: $host\r\n")
+            out.writeStringUtf8("Connection: close\r\n")
+            out.writeStringUtf8("\r\n")
+            out.flush()
 
-            input.consumeEach { bb ->
+            val bb = ByteBuffer.allocate(8192)
+            while (true) {
+                bb.clear()
+                val rc = input.readAvailable(bb)
+                if (rc == -1) break
+
                 System.out.write(bb.array(), bb.arrayOffset() + bb.position(), bb.remaining())
                 System.out.flush()
-                pool.send(bb)
             }
 
             println("All consumed for $host")
         }
     }
-}
-
-fun runUnlimitedPool(): Channel<ByteBuffer> {
-    val pool = ArrayChannel<ByteBuffer>(256)
-
-    launch(CommonPool) {
-        while (true) {
-            if (!pool.offer(ByteBuffer.allocate(8192))) break
-        }
-    }
-
-    return pool
 }

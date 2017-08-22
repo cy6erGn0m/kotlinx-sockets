@@ -61,7 +61,7 @@
             </dependency>
             <dependency>
                 <groupId>org.jetbrains.kotlinx</groupId>
-                <artifactId>kotlinx-coroutines-nio</artifactId>
+                <artifactId>kotlinx-coroutines-io</artifactId>
                 <version>${coroutines.version}</version>
             </dependency>
         </dependencies>

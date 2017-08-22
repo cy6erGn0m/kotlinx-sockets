@@ -1,24 +1,26 @@
 package kotlinx.sockets.tests
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import org.junit.*
 import org.junit.rules.*
 import java.net.ServerSocket
-import java.nio.*
 import java.util.concurrent.*
 import kotlin.concurrent.*
 import kotlin.test.*
 
 class ClientSocketTest {
     private val selector = ExplicitSelectorManager()
-    private var serverError: Throwable? = null
     private var server: Pair<ServerSocket, Thread>? = null
 
     @get:Rule
     val timeout = Timeout(15L, TimeUnit.SECONDS)
+
+    @get:Rule
+    val errors = ErrorCollector()
 
     @After
     fun tearDown() {
@@ -27,8 +29,6 @@ class ClientSocketTest {
             thread.interrupt()
         }
         selector.close()
-
-        serverError?.let { throw it }
     }
 
     @Test
@@ -50,11 +50,8 @@ class ClientSocketTest {
 
         client { socket ->
             val bb = ByteBuffer.allocate(3)
-
-            while (bb.hasRemaining()) {
-                if (socket.read(bb) == -1) break
-            }
-
+            val channel = socket.openReadChannel()
+            channel.readFully(bb)
             assertEquals("123", String(bb.array()))
         }
     }
@@ -66,13 +63,8 @@ class ClientSocketTest {
         }
 
         client { socket ->
-            val bb = ByteBuffer.allocate(3)
-            bb.put("123".toByteArray())
-            bb.flip()
-
-            while (bb.hasRemaining()) {
-                socket.write(bb)
-            }
+            val channel = socket.openWriteChannel(true)
+            channel.writeStringUtf8("123")
         }
     }
 
@@ -86,34 +78,7 @@ class ClientSocketTest {
         }
 
         client { socket ->
-            val bb = ByteBuffer.allocate(3)
-            val sb = StringBuilder()
-
-            while (true) {
-                bb.clear()
-                if (socket.read(bb) == -1) break
-                bb.flip()
-
-                sb.append(String(bb.array(), bb.arrayOffset() + bb.position(), bb.remaining()))
-            }
-
-            assertEquals("0123456789", sb.toString())
-        }
-    }
-
-    @Test
-    fun testWriteParts() {
-        server { client ->
-            assertEquals("0123456789", client.getInputStream().reader().readText())
-        }
-
-        client { socket ->
-            val bb = ByteBuffer.allocate(1)
-
-            for (i in 0..9) {
-                bb.put(0, i.toString()[0].toByte()).clear()
-                socket.write(bb)
-            }
+            assertEquals("0123456789", socket.openReadChannel().readUTF8Line())
         }
     }
 
@@ -139,7 +104,7 @@ class ClientSocketTest {
                     client.use(block)
                 }
             } catch (t: Throwable) {
-                serverError?.addSuppressed(t) ?: run { serverError = t }
+                errors.addError(t)
             }
         }
 

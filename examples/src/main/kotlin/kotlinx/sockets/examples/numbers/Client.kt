@@ -1,9 +1,8 @@
 package kotlinx.sockets.examples.numbers
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
-import kotlinx.sockets.channels.*
-import kotlinx.sockets.channels.impl.*
 import java.io.*
 import java.net.*
 import java.util.*
@@ -26,7 +25,7 @@ suspend fun numbersClientImpl(port: Int, log: Boolean): Long {
         }
 
         val time = measureTimeMillis {
-            main(socket.asCharChannel().buffered(), socket.asCharWriteChannel(), log)
+            main(socket.openReadChannel(), socket.openWriteChannel(), log)
         }
 
         if (log) {
@@ -37,9 +36,11 @@ suspend fun numbersClientImpl(port: Int, log: Boolean): Long {
     }
 }
 
-private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChannel, log: Boolean) {
-    output.write("HELLO\n")
-    when (input.readLine()) {
+private suspend fun main(input: ByteReadChannel, output: ByteWriteChannel, log: Boolean) {
+    output.writeStringUtf8("HELLO\n")
+    output.flush()
+
+    when (input.readASCIILine()) {
         null -> return
         "EHLLO" -> {
         }
@@ -58,9 +59,9 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
         avg(input, output, rnd, log)
     }
 
-    output.write("BYE\n")
+    output.writeStringUtf8("BYE\n")
     do {
-        when (input.readLine()) {
+        when (input.readASCIILine()) {
             "BYE", null -> return
             else -> {
             }
@@ -68,12 +69,13 @@ private suspend fun main(input: BufferedCharReadChannel, output: CharWriteChanne
     } while (true)
 }
 
-private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
+private suspend fun sum(input: ByteReadChannel, output: ByteWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
-    output.write(numbers.joinToString(",", prefix = "SUM\n", postfix = "\n"))
+    output.writeStringUtf8(numbers.joinToString(",", prefix = "SUM\n", postfix = "\n"))
+    output.flush()
 
-    val response = input.readLine()
+    val response = input.readASCIILine()
     val result = when (response) {
         null -> throw IOException("Unexpected EOF")
         else -> response.trim().toInt()
@@ -86,12 +88,13 @@ private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel
     }
 }
 
-private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel, rnd: Random, log: Boolean) {
+private suspend fun avg(input: ByteReadChannel, output: ByteWriteChannel, rnd: Random, log: Boolean) {
     val numbers = rnd.randomNumbers()
 
-    output.write(numbers.joinToString(",", prefix = "AVG\n", postfix = "\n"))
+    output.writeStringUtf8(numbers.joinToString(",", prefix = "AVG\n", postfix = "\n"))
+    output.flush()
 
-    val response = input.readLine()
+    val response = input.readASCIILine()
     val result = when (response) {
         null -> throw IOException("Unexpected EOF")
         else -> response.trim().toDouble()

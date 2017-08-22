@@ -1,11 +1,10 @@
 package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
-import kotlinx.sockets.channels.*
 import java.net.*
-import java.nio.*
 import java.util.concurrent.*
 
 private val bufferSize = 8192
@@ -37,21 +36,23 @@ fun main(args: Array<String>) {
 
 private suspend fun handleClient(client: Socket) {
     val bb = bufferPool.poll() ?: ByteBuffer.allocate(bufferSize)
+    val input = client.openReadChannel()
+    val output = client.openWriteChannel()
 
     try {
         loop@ while (true) {
             val parser = Parser(bb)
-            val request = parser.parse(client) ?: break@loop
+            val request = parser.parse(input) ?: break@loop
 
             when {
                 request.method != "GET" -> {
-                    client.respond(405, "Method Not Allowed", request.version, "close", "Not allowed: ${request.method}")
+                    output.respond(405, "Method Not Allowed", request.version, "close", "Not allowed: ${request.method}")
                     break@loop
                 }
                 request.uri != "/" -> {
                     val connection = request.header("Connection").singleOrNull()?.value(request.headersBody) ?: defaultConnectionForVersion(request.version)
 
-                    client.respond(404, "Not Found", request.version, connection, "Not found: ${request.uri}")
+                    output.respond(404, "Not Found", request.version, connection, "Not found: ${request.uri}")
 
                     if (connection.equals("close", ignoreCase = true)) {
                         break@loop
@@ -60,7 +61,7 @@ private suspend fun handleClient(client: Socket) {
                 else -> {
                     val connection = request.header("Connection").singleOrNull()?.value(request.headersBody) ?: defaultConnectionForVersion(request.version)
 
-                    client.respond(200, "OK", request.version, connection, "Hello, World!")
+                    output.respond(200, "OK", request.version, connection, "Hello, World!")
 
                     if (connection.equals("close", ignoreCase = true)) {
                         break@loop
@@ -75,22 +76,21 @@ private suspend fun handleClient(client: Socket) {
 
 private fun defaultConnectionForVersion(version: String) = if (version == "HTTP/1.1") "keep-alive" else "close"
 
-private suspend fun WriteChannel.respond(code: Int, statusMessage: String, version: String, connection: String, content: String) {
-    write(ByteBuffer.wrap(buildString(256) {
-        append(version)
-        append(' ')
-        append(code)
-        append(' ')
-        append(statusMessage)
-        append("\r\n")
+private suspend fun ByteWriteChannel.respond(code: Int, statusMessage: String, version: String, connection: String, content: String) {
+    writeStringUtf8(version)
+    writeStringUtf8(" ")
+    writeStringUtf8(code.toString())
+    writeStringUtf8(" ")
+    writeStringUtf8(statusMessage)
+    writeStringUtf8("\r\n")
 
-        append("Connection: "); append(connection); append("\r\n")
-        append("Content-Type: text/plain\r\n")
-        append("Content-Length: "); append((content.length + 2).toString()); append("\r\n")
-        append("\r\n")
-        append(content)
-        append("\r\n")
-    }.toByteArray(Charsets.ISO_8859_1)))
+    writeStringUtf8("Connection: "); writeStringUtf8(connection); writeStringUtf8("\r\n")
+    writeStringUtf8("Content-Type: text/plain\r\n")
+    writeStringUtf8("Content-Length: "); writeStringUtf8((content.length + 2).toString()); writeStringUtf8("\r\n")
+    writeStringUtf8("\r\n")
+    writeStringUtf8(content)
+    writeStringUtf8("\r\n")
+    flush()
 }
 
 private class HeaderEntry(val nameStart: Int, val nameLength: Int, val nameHash: Int, val valueStart: Int, val valueLength: Int) {
@@ -119,9 +119,9 @@ private class Parser(val bb: ByteBuffer) {
     private var uri: String? = null
     private var version: String? = null
 
-    suspend fun parse(ch: ReadChannel): HttpRequest? {
+    suspend fun parse(ch: ByteReadChannel): HttpRequest? {
         readLoop@ while (true) {
-            val rc = ch.read(bb)
+            val rc = ch.readAvailable(bb)
             if (rc == -1) {
                 if (state == State.Method) return null
                 else throw ParserException("Unexpected EOF")

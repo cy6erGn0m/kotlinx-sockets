@@ -1,9 +1,8 @@
 package kotlinx.sockets.examples.dns
 
-import kotlinx.sockets.*
-import kotlinx.sockets.channels.*
+import kotlinx.coroutines.experimental.io.*
+import kotlinx.coroutines.experimental.io.packet.ByteReadPacketEmpty.skipExact
 import java.net.*
-import java.nio.*
 import java.nio.charset.*
 
 private class DomainNameCompressionSupport {
@@ -11,11 +10,9 @@ private class DomainNameCompressionSupport {
     var currentOffset = 12
 }
 
-suspend fun BufferedReadChannel.readMessage(tcp: Boolean): Message {
-    fill(2)
-
+suspend fun ByteReadChannel.readMessage(tcp: Boolean): Message {
     if (tcp) {
-        getUShort() // TODO process parts
+        readShort() // TODO process parts
     }
 
     val support = DomainNameCompressionSupport()
@@ -30,17 +27,15 @@ suspend fun BufferedReadChannel.readMessage(tcp: Boolean): Message {
     )
 }
 
-private suspend fun BufferedReadChannel.readHeader(): Header {
-    fill(12)
+private suspend fun ByteReadChannel.readHeader(): Header {
+    val id = readShort()
+    val flags1 = readByte()
+    val flags2 = readByte()
 
-    val id = getShort()
-    val flags1 = getByte()
-    val flags2 = getByte()
-
-    val questionsCount = getUShort()
-    val answersCount = getUShort()
-    val nameServersCount = getUShort()
-    val additionalCount = getUShort()
+    val questionsCount = readUShort()
+    val answersCount = readUShort()
+    val nameServersCount = readUShort()
+    val additionalCount = readUShort()
 
     val opcode = Opcode.byValue[(flags1.toInt() and 0xff) shr 3 and 0xf] ?: throw IllegalArgumentException("Wrong opcode")
     val responseCode = ResponseCode.byValue[flags2.toInt() and 0xf] ?: throw IllegalArgumentException("Wrong response code")
@@ -65,20 +60,19 @@ private suspend fun BufferedReadChannel.readHeader(): Header {
 @Suppress("NOTHING_TO_INLINE")
 private inline fun Byte.flag(n: Int): Boolean = ((toInt() and 0xff) and (1 shl n)) != 0
 
-private suspend fun BufferedReadChannel.readQuestion(decoder: CharsetDecoder, support: DomainNameCompressionSupport): Question? {
+private suspend fun ByteReadChannel.readQuestion(decoder: CharsetDecoder, support: DomainNameCompressionSupport): Question? {
     val name = readName(decoder, support)
 
-    fill(4)
-    val typeValue = getUShort()
+    val typeValue = readUShort()
     val type = Type.byValue[typeValue]
 
     if (type == null) {
         System.err.println("Wrong question record type $typeValue")
-        getUShort()
+        readUShort()
         return null
     }
 
-    val classValue = getUShort()
+    val classValue = readUShort()
     val qclass = Class.byValue[classValue]
 
     if (qclass == null) {
@@ -91,15 +85,14 @@ private suspend fun BufferedReadChannel.readQuestion(decoder: CharsetDecoder, su
     return Question(name, type, qclass)
 }
 
-private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, support: DomainNameCompressionSupport): Resource<*>? {
+private suspend fun ByteReadChannel.readResource(decoder: CharsetDecoder, support: DomainNameCompressionSupport): Resource<*>? {
 //    val startOffset = support.currentOffset
     val name = readName(decoder, support)
-    fill(10)
 
-    val typeValue = getUShort()
-    val value1 = getUShort()
-    val value2 = getUInt()
-    val length = getUShort()
+    val typeValue = readUShort()
+    val value1 = readUShort()
+    val value2 = readUInt()
+    val length = readUShort()
 
     support.currentOffset += 10
 
@@ -152,12 +145,11 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
             val mname = readName(decoder, support)
             val rname = readName(decoder, support)
 
-            fill(5 * 4)
-            val serial = getUInt()
-            val refresh = getUInt()
-            val retry = getUInt()
-            val expire = getUInt()
-            val minimum = getUInt()
+            val serial = readUInt()
+            val refresh = readUInt()
+            val retry = readUInt()
+            val expire = readUInt()
+            val minimum = readUInt()
 
             support.currentOffset += 20
 
@@ -169,12 +161,11 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
         }
         Type.TXT -> {
             var remaining = length
-            val textBuffer = pool.receive()
+            val textBuffer = ByteBuffer.allocate(8192) // TODO
             val texts = ArrayList<String>(2)
 
             while (remaining > 0) {
-                fill(1)
-                val textSize = getUByte()
+                val textSize = readByte().toInt() and 0xff
 
                 textBuffer.clear()
                 textBuffer.limit(minOf(textSize, remaining))
@@ -188,13 +179,10 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
                 remaining -= textSize + 1
             }
 
-            pool.offer(textBuffer)
-
             return Resource.Text(name, texts, length)
         }
         Type.MX -> {
-            fill(3)
-            val preference = getUShort()
+            val preference = readUShort()
             support.currentOffset += 2
             val exchange = readName(decoder, support)
 
@@ -213,20 +201,18 @@ private suspend fun BufferedReadChannel.readResource(decoder: CharsetDecoder, su
     return result
 }
 
-private suspend fun BufferedReadChannel.readName(decoder: CharsetDecoder, support: DomainNameCompressionSupport): List<String> {
+private suspend fun ByteReadChannel.readName(decoder: CharsetDecoder, support: DomainNameCompressionSupport): List<String> {
     val initialOffset = support.currentOffset
     var currentOffset = initialOffset
     val name = ArrayList<String>()
 
     do {
-        fill(1)
-        val partLength = getUByte()
+        val partLength = readByte().toInt() and 0xff
         if (partLength == 0) {
             currentOffset++
             break
         } else if (partLength and 0xc0 == 0xc0) { // two higher bits are 11 so use compressed
-            fill(1)
-            val lower = getUByte()
+            val lower = readByte().toInt() and 0xff
             val offset = lower or ((partLength and 0x3f) shl 8)
 
             if (offset >= currentOffset) {
@@ -254,7 +240,7 @@ private suspend fun BufferedReadChannel.readName(decoder: CharsetDecoder, suppor
 }
 
 private fun updateSupport(support: DomainNameCompressionSupport, initialOffset: Int, before: List<String>, after: List<String>) {
-    for (idx in 0 .. before.size - 1) {
+    for (idx in 0 until before.size) {
         val index = initialOffset + before.subList(0, idx).sumBy { it.length + 1 }
         val value = when {
             idx == 0 && after.isEmpty() -> before
@@ -265,3 +251,14 @@ private fun updateSupport(support: DomainNameCompressionSupport, initialOffset: 
     }
 }
 
+private suspend fun ByteReadChannel.getStringByRawLength(length: Int, decoder: CharsetDecoder): String {
+    decoder.reset()
+    val bb = ByteBuffer.allocate(length)
+    bb.clear()
+    readFully(bb)
+    bb.flip()
+    return decoder.decode(bb).toString()
+}
+
+private suspend fun ByteReadChannel.readUShort(): Int = readShort().toInt() and 0xffff
+private suspend fun ByteReadChannel.readUInt(): Long = readInt().toLong() and 0xffffffffL

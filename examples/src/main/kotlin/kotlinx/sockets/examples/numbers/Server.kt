@@ -1,11 +1,10 @@
 package kotlinx.sockets.examples.numbers
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.ServerSocket
 import kotlinx.sockets.Socket
-import kotlinx.sockets.channels.*
-import kotlinx.sockets.channels.impl.*
 import java.net.*
 import java.nio.channels.*
 import java.util.logging.*
@@ -50,56 +49,56 @@ fun startNumbersServer(port: Int?, onBound: () -> Unit = {}): Pair<ServerSocket,
 }
 
 private suspend fun runClient(client: Socket) {
-    val input = client.asCharChannel().buffered()
-    val output = client.asCharWriteChannel()
+    val input = client.openReadChannel()
+    val output = client.openWriteChannel(true)
     val logger = Logger.getLogger("client")
 
     hello@ while (true) {
-        when (input.readLine()) {
+        when (input.readASCIILine()) {
             null -> return
             "" -> {
             }
             "HELLO" -> {
-                output.write("EHLLO\n")
+                output.writeStringUtf8("EHLLO\n")
                 break@hello
             }
             else -> {
                 logger.warning("Wrong hello from client ${client.remoteAddress}")
-                output.write("ERROR Wrong HELLO\n")
+                output.writeStringUtf8("ERROR Wrong HELLO\n")
                 return
             }
         }
     }
 
     command@ while (true) {
-        val command = input.readLine() ?: return
+        val command = input.readASCIILine() ?: return
         when (command) {
             "" -> continue@command
             "SUM" -> sum(input, output)
             "AVG" -> avg(input, output)
             "BYE" -> {
-                output.write("BYE\n")
+                output.writeStringUtf8("BYE\n")
                 return
             }
             else -> {
                 logger.warning("Unknown command $command from client ${client.remoteAddress}")
-                output.write("ERROR Unknown command\n")
+                output.writeStringUtf8("ERROR Unknown command\n")
                 return
             }
         }
     }
 }
 
-private suspend fun sum(input: BufferedCharReadChannel, output: CharWriteChannel) {
+private suspend fun sum(input: ByteReadChannel, output: ByteWriteChannel) {
     val numbers = numbers(input) ?: return
-    output.write("${numbers.sum()}\n")
+    output.writeStringUtf8("${numbers.sum()}\n")
 }
 
-private suspend fun avg(input: BufferedCharReadChannel, output: CharWriteChannel) {
+private suspend fun avg(input: ByteReadChannel, output: ByteWriteChannel) {
     val numbers = numbers(input) ?: return
-    output.write("${numbers.average()}\n")
+    output.writeStringUtf8("${numbers.average()}\n")
 }
 
-private suspend fun numbers(input: BufferedCharReadChannel): List<Int>? {
-    return input.readLine()?.trim()?.split(",")?.filter(String::isNotBlank)?.map(String::toInt)
+private suspend fun numbers(input: ByteReadChannel): List<Int>? {
+    return input.readASCIILine()?.trim()?.split(",")?.filter(String::isNotBlank)?.map(String::toInt)
 }

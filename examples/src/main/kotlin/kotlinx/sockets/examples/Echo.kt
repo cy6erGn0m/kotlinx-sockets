@@ -1,10 +1,10 @@
 package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import java.net.*
-import java.nio.*
 
 fun main(args: Array<String>) {
     runBlocking {
@@ -19,17 +19,10 @@ fun main(args: Array<String>) {
 private fun runClient(client: Socket) {
     launch(CommonPool) {
         client.use {
-            val bb = ByteBuffer.allocateDirect(8192)
-            while (true) {
-                bb.clear()
-                val rc = client.read(bb)
-                if (rc == -1) break
-                bb.flip()
+            val input = it.openReadChannel()
+            val output = it.openWriteChannel(true)
 
-                while (bb.hasRemaining()) {
-                    client.write(bb)
-                }
-            }
+            input.copyAndClose(output)
         }
     }
 }

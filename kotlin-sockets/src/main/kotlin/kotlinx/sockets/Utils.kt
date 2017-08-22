@@ -7,6 +7,7 @@ import java.io.*
 import java.nio.*
 import java.nio.channels.*
 
+@Deprecated("")
 suspend fun ReadChannel.readFully(dst: ByteBuffer) {
     do {
         if (read(dst) == -1) {
@@ -16,6 +17,7 @@ suspend fun ReadChannel.readFully(dst: ByteBuffer) {
     } while (dst.hasRemaining())
 }
 
+@Deprecated("")
 suspend fun WriteChannel.writeFully(src: ByteBuffer) {
     do {
         write(src)
