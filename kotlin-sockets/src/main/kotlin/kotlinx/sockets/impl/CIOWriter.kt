@@ -1,17 +1,15 @@
 package kotlinx.sockets.impl
 
-import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import java.nio.channels.*
 
-internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByteChannel, selectable: SelectableBase, selector: SelectorManager) {
-
+internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByteChannel, selectable: Selectable, selector: SelectorManager): ReaderJob {
     val buffer = ByteBuffer.allocateDirect(65536)
 
-    launch(ioCoroutineDispatcher) {
+    return reader(ioCoroutineDispatcher, channel) {
         try {
             while (true) {
                 buffer.clear()
@@ -30,8 +28,6 @@ internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByte
                     }
                 }
             }
-        } catch (t: Throwable) {
-            channel.close(t)
         } finally {
             if (nioChannel is SocketChannel) {
                 try {

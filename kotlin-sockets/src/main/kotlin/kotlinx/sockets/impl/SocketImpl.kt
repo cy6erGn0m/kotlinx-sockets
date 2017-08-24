@@ -1,12 +1,11 @@
 package kotlinx.sockets.impl
 
-import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class SocketImpl<out S : SocketChannel>(override val channel: S, val selector: SelectorManager) : SelectableBase(), Socket {
+internal class SocketImpl<out S : SocketChannel>(override val channel: S, selector: SelectorManager) : Selectable by SelectableBase(channel), NIOSocketImpl<S>(channel, selector), Socket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
@@ -35,20 +34,12 @@ internal class SocketImpl<out S : SocketChannel>(override val channel: S, val se
         return this
     }
 
-    override fun attachForReading(channel: ByteChannel) {
-        attachForReadingImpl(channel, this.channel, this, selector)
-    }
-
-    override fun attachForWriting(channel: ByteChannel) {
-        attachForWritingImpl(channel, this.channel, this, selector)
+    override fun dispose() {
+        super<NIOSocketImpl>.dispose()
     }
 
     override fun close() {
-        try {
-            channel.close()
-        } finally {
-            selector.notifyClosed(this)
-        }
+        super<NIOSocketImpl>.close()
     }
 
     private fun wantConnect(state: Boolean = true) {

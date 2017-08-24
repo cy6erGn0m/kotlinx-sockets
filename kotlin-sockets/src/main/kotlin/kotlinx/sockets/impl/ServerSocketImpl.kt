@@ -1,15 +1,20 @@
 package kotlinx.sockets.impl
 
+import kotlinx.coroutines.experimental.*
 import kotlinx.sockets.ServerSocket
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class ServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager) : ServerSocket, SelectableBase() {
+internal class ServerSocketImpl(override val channel: ServerSocketChannel, val selector: SelectorManager)
+    : ServerSocket,
+        Selectable by SelectableBase(channel) {
     init {
         require(!channel.isBlocking)
     }
+
+    override val closed = CompletableDeferred<Unit>()
 
     override val localAddress: SocketAddress
         get() = channel.localAddress
@@ -32,9 +37,19 @@ internal class ServerSocketImpl(override val channel: ServerSocketChannel, val s
 
     override fun close() {
         try {
-            channel.close()
-        } finally {
-            selector.notifyClosed(this)
+            try {
+                channel.close()
+            } finally {
+                selector.notifyClosed(this)
+            }
+
+            closed.complete(Unit)
+        } catch (t: Throwable) {
+            closed.completeExceptionally(t)
         }
+    }
+
+    override fun dispose() {
+        super.dispose()
     }
 }

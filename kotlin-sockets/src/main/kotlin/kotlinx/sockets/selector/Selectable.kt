@@ -27,7 +27,7 @@ interface Selectable : Closeable, DisposableHandle {
     fun interestOp(interest: SelectInterest, state: Boolean)
 }
 
-abstract class SelectableBase : Selectable {
+internal class SelectableBase(override val channel: SelectableChannel) : Selectable {
     private val interestedOpsAtomic = AtomicInteger(0)
 
     override val suspensions = InterestSuspensionsMap()
@@ -43,6 +43,13 @@ abstract class SelectableBase : Selectable {
             val after = if (state) before or flag else before and flag.inv()
             if (interestedOpsAtomic.compareAndSet(before, after)) break
         }
+    }
+
+    // TODO!!!
+    override fun close() {
+    }
+
+    override fun dispose() {
     }
 }
 

@@ -62,7 +62,6 @@ class ServerSocketTest {
         server { client ->
             val channel = client.openWriteChannel(true)
             channel.writeStringUtf8("123")
-            channel.close()
         }
 
         client { socket ->

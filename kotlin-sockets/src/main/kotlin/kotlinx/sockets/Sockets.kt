@@ -13,6 +13,8 @@ import java.nio.charset.*
  * Base type for all async sockets
  */
 interface ASocket : Closeable, DisposableHandle {
+    val closed: Deferred<Unit>
+
     override fun dispose() {
         try {
             close()
@@ -20,6 +22,8 @@ interface ASocket : Closeable, DisposableHandle {
         }
     }
 }
+
+val ASocket.isClosed: Boolean get() = closed.isCompleted
 
 interface AConnectedSocket : AWritable {
     /**
@@ -47,11 +51,11 @@ interface Acceptable<out S : ASocket> : ASocket {
 }
 
 interface AReadable {
-    fun attachForReading(channel: ByteChannel)
+    fun attachForReading(channel: ByteChannel): WriterJob
 }
 
 interface AWritable {
-    fun attachForWriting(channel: ByteChannel)
+    fun attachForWriting(channel: ByteChannel): ReaderJob
 }
 
 interface ReadWriteSocket : ASocket, AReadable, AWritable

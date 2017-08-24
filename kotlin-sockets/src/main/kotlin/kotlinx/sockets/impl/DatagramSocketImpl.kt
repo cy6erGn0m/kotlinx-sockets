@@ -1,14 +1,16 @@
 package kotlinx.sockets.impl
 
 import kotlinx.coroutines.experimental.io.*
-import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class DatagramSocketImpl(override val channel: DatagramChannel, val selector: SelectorManager) : BoundDatagramSocket, ConnectedDatagramSocket, SelectableBase() {
+internal class DatagramSocketImpl(override val channel: DatagramChannel, selector: SelectorManager)
+    : BoundDatagramSocket, ConnectedDatagramSocket,
+        Selectable by SelectableBase(channel),
+        NIOSocketImpl<DatagramChannel>(channel, selector) {
 
     override val localAddress: SocketAddress
         get() = channel.localAddress ?: throw IllegalStateException("Channel is not yet bound")
@@ -17,14 +19,6 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
         get() = channel.remoteAddress ?: throw IllegalStateException("Channel is not yet connected")
 
     override fun shutdownOutput() {
-    }
-
-    override fun attachForReading(channel: ByteChannel) {
-        attachForReadingImpl(channel, this.channel, this, selector)
-    }
-
-    override fun attachForWriting(channel: ByteChannel) {
-        attachForWritingImpl(channel, this.channel, this, selector)
     }
 
     suspend override fun receive(): Datagram {
@@ -79,6 +73,10 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, val sel
     }
 
     override fun close() {
-        channel.close()
+        super<NIOSocketImpl>.close()
+    }
+
+    override fun dispose() {
+        super<NIOSocketImpl>.dispose()
     }
 }
