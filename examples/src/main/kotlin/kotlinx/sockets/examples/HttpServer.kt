@@ -2,6 +2,7 @@ package kotlinx.sockets.examples
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
+import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import java.net.*
@@ -77,19 +78,21 @@ private suspend fun handleClient(client: Socket) {
 private fun defaultConnectionForVersion(version: String) = if (version == "HTTP/1.1") "keep-alive" else "close"
 
 private suspend fun ByteWriteChannel.respond(code: Int, statusMessage: String, version: String, connection: String, content: String) {
-    writeStringUtf8(version)
-    writeStringUtf8(" ")
-    writeStringUtf8(code.toString())
-    writeStringUtf8(" ")
-    writeStringUtf8(statusMessage)
-    writeStringUtf8("\r\n")
+    writePacket(buildPacket {
+        writeStringUtf8(version)
+        writeStringUtf8(" ")
+        writeStringUtf8(code.toString())
+        writeStringUtf8(" ")
+        writeStringUtf8(statusMessage)
+        writeStringUtf8("\r\n")
 
-    writeStringUtf8("Connection: "); writeStringUtf8(connection); writeStringUtf8("\r\n")
-    writeStringUtf8("Content-Type: text/plain\r\n")
-    writeStringUtf8("Content-Length: "); writeStringUtf8((content.length + 2).toString()); writeStringUtf8("\r\n")
-    writeStringUtf8("\r\n")
-    writeStringUtf8(content)
-    writeStringUtf8("\r\n")
+        writeStringUtf8("Connection: "); writeStringUtf8(connection); writeStringUtf8("\r\n")
+        writeStringUtf8("Content-Type: text/plain\r\n")
+        writeStringUtf8("Content-Length: "); writeStringUtf8((content.length + 2).toString()); writeStringUtf8("\r\n")
+        writeStringUtf8("\r\n")
+        writeStringUtf8(content)
+        writeStringUtf8("\r\n")
+    })
     flush()
 }
 
