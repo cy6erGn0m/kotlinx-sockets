@@ -35,7 +35,11 @@ enum class SelectInterest(val flag: Int) {
     READ(SelectionKey.OP_READ),
     WRITE(SelectionKey.OP_WRITE),
     ACCEPT(SelectionKey.OP_ACCEPT),
-    CONNECT(SelectionKey.OP_CONNECT)
+    CONNECT(SelectionKey.OP_CONNECT);
+
+    companion object {
+        val AllInterests = values()
+    }
 }
 
 /**

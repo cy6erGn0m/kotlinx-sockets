@@ -27,8 +27,9 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
         }
     }
 
-    suspend override fun select(selectable: Selectable, interest: SelectInterest) {
-        select(selectable, interest, { interestQueue.put(it); withSelector { wakeup() } })
+    override fun publishInterest(selectable: Selectable) {
+        interestQueue.put(selectable)
+        withSelector { wakeup() }
     }
 
     override fun notifyClosed(s: Selectable) {
@@ -94,8 +95,7 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
             } else if (preselected > 0 || selector.select() > 0) {
                 selector.selectedKeys().apply {
                     if (isNotEmpty()) {
-                        forEach {
-                            handleSelectedKey(it) }
+                        forEach { handleSelectedKey(it) }
                         clear()
                     }
                 }

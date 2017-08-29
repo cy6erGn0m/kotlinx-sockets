@@ -35,7 +35,7 @@ class InterestSuspensionsMap {
     }
 
     inline fun invokeForEachPresent(block: CancellableContinuation<Unit>.(SelectInterest) -> Unit) {
-        for (interest in SelectInterest.values()) {
+        for (interest in SelectInterest.AllInterests) {
             removeSuspension(interest)?.run { block(interest) }
         }
     }
@@ -52,7 +52,7 @@ class InterestSuspensionsMap {
 
     companion object {
         @Suppress("UNCHECKED_CAST")
-        private val updaters = SelectInterest.values().map { interest ->
+        private val updaters = SelectInterest.AllInterests.map { interest ->
             AtomicReferenceFieldUpdater.newUpdater(InterestSuspensionsMap::class.java, CancellableContinuation::class.java, "${interest.name.toLowerCase()}HandlerReference") as AtomicReferenceFieldUpdater<InterestSuspensionsMap, CancellableContinuation<Unit>?>
         }.toTypedArray()
 
