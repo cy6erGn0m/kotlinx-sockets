@@ -1,10 +1,12 @@
 package kotlinx.sockets.selector
 
+import kotlinx.coroutines.experimental.internal.*
 import kotlinx.sockets.*
 import java.io.*
 import java.nio.channels.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.*
+import java.util.concurrent.locks.*
 
 /**
  * A selector manager that creates a selector instance and run selection loop on-demand only.
@@ -15,20 +17,24 @@ import java.util.concurrent.atomic.*
 class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit = TimeUnit.SECONDS) : Closeable, SelectorManagerSupport() {
     @Volatile
     private var closed = false
-    private val interestQueue = ArrayBlockingQueue<Selectable>(1000)
+    private val interestQueueLF = LockFreeLinkedListHead()
     private val currentSelector = AtomicReference<Selector?>()
+
+    @Volatile
+    private var loopThread: Thread? = null
 
     override fun close() {
         closed = true
 
         withSelector(false) {
-            interestQueue.put(Poison)
+            interestQueueLF.addLast(Poison)
             wakeup()
         }
     }
 
     override fun publishInterest(selectable: Selectable) {
-        interestQueue.put(selectable)
+        interestQueueLF.addLast(selectable.node)
+        loopThread?.let { t -> LockSupport.unpark(t) }
         withSelector { wakeup() }
     }
 
@@ -64,13 +70,13 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
 
                     do {
                         loop(selector)
-                    } while (interestQueue.isNotEmpty() && !closed)
+                    } while (!interestQueueLF.isEmpty && !closed)
                 } catch (e: ClosedSelectorException) {
                     closed = true
                     break
                 } finally {
                     currentSelector.set(null)
-                    if (interestQueue.isEmpty()) {
+                    if (interestQueueLF.isEmpty) {
                         break
                     }
                 }
@@ -78,8 +84,8 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
         }
 
         if (!closed && !evaluated) {
-            block.get()?.let { block ->
-                withSelector(true, block)
+            block.get()?.let { b ->
+                withSelector(true, b)
             }
         }
     }
@@ -90,8 +96,14 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
             processInterestQueue(selector)
 
             if (preselected == 0 && selector.keys().isEmpty() && !closed) {
-                val e = interestQueue.poll(idleTime, idleTimeUnit) ?: return
-                applyInterest(selector, e)
+                val node = interestQueueLF.removeFirstOrNull()
+                val e = (node as? SelectableNode)?.selectable
+
+                if (e != null) {
+                    applyInterest(selector, e)
+                } else if (node !== Poison) {
+                    LockSupport.parkNanos(idleTimeUnit.toNanos(idleTime))
+                }
             } else if (preselected > 0 || selector.select() > 0) {
                 selector.selectedKeys().apply {
                     if (isNotEmpty()) {
@@ -105,31 +117,13 @@ class OnDemandSelectorManager(val idleTime: Long = 5, val idleTimeUnit: TimeUnit
 
     private fun processInterestQueue(selector: Selector) {
         while (true) {
-            val e = interestQueue.poll() ?: break
+            val node = interestQueueLF.removeFirstOrNull()
+            val e = (node as? SelectableNode)?.selectable ?: break
             applyInterest(selector, e)
         }
     }
 
     companion object {
-        private val Poison = object : Selectable {
-            override val suspensions: InterestSuspensionsMap
-                get() = throw ClosedSelectorException()
-
-            override val channel: SelectableChannel
-                get() = throw ClosedSelectorException()
-
-            override val interestedOps: Int
-                get() = 0
-
-            override fun close() {
-            }
-
-            override fun dispose() {
-            }
-
-            override fun interestOp(interest: SelectInterest, state: Boolean) {
-                throw ClosedSelectorException()
-            }
-        }
+        private val Poison = LockFreeLinkedListNode()
     }
 }

@@ -1,6 +1,7 @@
 package kotlinx.sockets.selector
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.internal.*
 import kotlinx.sockets.*
 import java.io.*
 import java.nio.channels.*
@@ -13,7 +14,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
     @Volatile
     private var closed = false
     private val selector = lazy { ensureStarted(); Selector.open()!! }
-    private val interestQueue = ArrayBlockingQueue<Selectable>(1000)
+    private val interestQueueLF = LockFreeLinkedListHead()
 
     private val selectorJob = launch(selectorsCoroutineDispatcher, CoroutineStart.LAZY) {
         try {
@@ -66,7 +67,7 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
     }
 
     override fun publishInterest(selectable: Selectable) {
-        interestQueue.put(selectable)
+        interestQueueLF.addLast(selectable.node)
         selector.value.wakeup()
     }
 
@@ -84,7 +85,8 @@ class ExplicitSelectorManager : Closeable, DisposableHandle, SelectorManagerSupp
         if (closed) return
 
         while (!closed) {
-            val selectable = interestQueue.poll() ?: break
+            val node = interestQueueLF.removeFirstOrNull() ?: break
+            val selectable = (node as SelectableNode).selectable
             applyInterest(selector, selectable)
         }
 
