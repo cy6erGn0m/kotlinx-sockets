@@ -1,5 +1,6 @@
 package kotlinx.sockets.selector
 
+import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.sockets.*
 import java.io.*
@@ -41,6 +42,10 @@ class ActorSelectorManager : SelectorManagerSupport(), Closeable {
             if (pending > 0) {
                 if (select(selector) > 0) {
                     handleSelectedKeys(selector.selectedKeys(), selector.keys())
+                } else {
+                    val received = mb.poll()
+                    if (received != null) applyInterest(selector, received)
+                    else yield()
                 }
             } else if (cancelled > 0) {
                 selector.selectNow()
@@ -57,7 +62,7 @@ class ActorSelectorManager : SelectorManagerSupport(), Closeable {
     private fun select(selector: Selector): Int {
         inSelect = true
         return if (wakeup.get() == 0L) {
-            val count = selector.select()
+            val count = selector.select(500L)
             inSelect = false
             count
         } else {
