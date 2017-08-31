@@ -10,13 +10,30 @@ import kotlin.concurrent.*
 
 val iterations = 10000
 val jmhOptions = OptionsBuilder()
-        .mode(Mode.Throughput)
+        .mode(Mode.AverageTime)
         .timeUnit(TimeUnit.MILLISECONDS)
-        .warmupIterations(20)
-        .measurementIterations(40)
+        .warmupIterations(5)
+        .measurementIterations(10)
         .warmupTime(TimeValue.milliseconds(1500))
         .measurementTime(TimeValue.milliseconds(1500))
-//        .jvmArgsAppend("-Xmx16g")
+        .jvm("/usr/java/jdk-9/bin/java")
+        .jvmArgsAppend(*("""
+            -XX:+UnlockDiagnosticVMOptions
+            -XX:LogFile=/home/cy6ergn0m/projects/kotlinx.sockets/jmh-benchmark/target/jvm.log
+            -XX:+LogCompilation
+            -XX:+PrintAssembly
+            -XX:+PrintOptoAssembly
+            -XX:+PrintInterpreter
+            -XX:+PrintNMethods
+            -XX:+PrintNativeNMethods
+            -XX:+PrintSignatureHandlers
+            -XX:+PrintAdapterHandlers
+            -XX:+PrintStubCode
+            -XX:+PrintCompilation
+            -XX:+PrintInlining
+            -XX:+TraceClassLoading
+            """.reader().readLines().map { it.trim() }.filter { it.isNotEmpty() }.toTypedArray()))
+        .addProfiler("perfasm", "hotThreshold=0.005")
         .forks(1)
 
 class BenchmarkSettings {

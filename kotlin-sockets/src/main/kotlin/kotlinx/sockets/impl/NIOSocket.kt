@@ -2,11 +2,14 @@ package kotlinx.sockets.impl
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
+import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
+import java.io.*
+import java.nio.channels.*
 import java.util.concurrent.atomic.*
 
-internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager) : ReadWriteSocket, Selectable
+internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager, val pool: ObjectPool<ByteBuffer>) : ReadWriteSocket, Selectable
         where S : java.nio.channels.ByteChannel, S : java.nio.channels.SelectableChannel {
 
     private val closeFlag = AtomicBoolean()
@@ -17,26 +20,27 @@ internal abstract class NIOSocketImpl<out S>(override val channel: S, val select
 
     override final fun attachForReading(channel: ByteChannel): WriterJob {
         return attachFor("reading", channel, writerJob) {
-            attachForReadingImpl(channel, this.channel, this, selector)
+            attachForReadingImpl(channel, this.channel, this, selector, pool)
         }
     }
 
     override final fun attachForWriting(channel: ByteChannel): ReaderJob {
         return attachFor("writing", channel, readerJob) {
-            attachForWritingImpl(channel, this.channel, this, selector)
+            attachForWritingImpl(channel, this.channel, this, selector, pool)
         }
     }
 
     override fun close() {
         if (closeFlag.compareAndSet(false, true)) {
             readerJob.get()?.channel?.close()
+            writerJob.get()?.cancel()
             checkChannels()
         }
     }
 
     private fun <J : Job> attachFor(name: String, channel: ByteChannel, ref: AtomicReference<J?>, producer: () -> J): J {
         if (closeFlag.get()) {
-            val e = IllegalStateException("Unable to start $name: socket has been already closed")
+            val e = ClosedChannelException()
             channel.close(e)
             throw e
         }
@@ -49,7 +53,7 @@ internal abstract class NIOSocketImpl<out S>(override val channel: S, val select
             throw e
         }
         if (closeFlag.get()) {
-            val e = IllegalStateException("Unable to start $name: socket has been already closed")
+            val e = ClosedChannelException()
             j.cancel(e)
             channel.close(e)
             throw e

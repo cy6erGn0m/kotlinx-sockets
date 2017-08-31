@@ -10,7 +10,7 @@ import java.nio.channels.*
 internal class DatagramSocketImpl(override val channel: DatagramChannel, selector: SelectorManager)
     : BoundDatagramSocket, ConnectedDatagramSocket,
         Selectable by SelectableBase(channel),
-        NIOSocketImpl<DatagramChannel>(channel, selector) {
+        NIOSocketImpl<DatagramChannel>(channel, selector, DefaultDatagramByteBufferPool) {
 
     override val localAddress: SocketAddress
         get() = channel.localAddress ?: throw IllegalStateException("Channel is not yet bound")

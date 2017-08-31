@@ -1,11 +1,12 @@
 package kotlinx.sockets.impl
 
+import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class SocketImpl<out S : SocketChannel>(override val channel: S, selector: SelectorManager) : Selectable by SelectableBase(channel), NIOSocketImpl<S>(channel, selector), Socket {
+internal class SocketImpl<out S : SocketChannel>(override val channel: S, selector: SelectorManager) : Selectable by SelectableBase(channel), NIOSocketImpl<S>(channel, selector, DefaultByteBufferPool), Socket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }

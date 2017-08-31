@@ -20,11 +20,15 @@ internal class ServerSocketImpl(override val channel: ServerSocketChannel, val s
         get() = channel.localAddress
 
     suspend override fun accept(): Socket {
-        while (true) {
-            channel.accept()?.let { return accepted(it) }
+        channel.accept()?.let { return accepted(it) }
+        return acceptSuspend()
+    }
 
+    private suspend fun acceptSuspend(): Socket {
+        while (true) {
             interestOp(SelectInterest.ACCEPT, true)
             selector.select(this, SelectInterest.ACCEPT)
+            channel.accept()?.let { return accepted(it) }
         }
     }
 

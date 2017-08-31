@@ -34,6 +34,17 @@ class InterestSuspensionsMap {
         return removeSuspension(interest)?.run { block(); true } ?: false
     }
 
+    @Suppress("LoopToCallChain")
+    inline fun invokeForEachPresent(readyOps: Int, block: CancellableContinuation<Unit>.() -> Unit) {
+        val flags = SelectInterest.flags
+
+        for (ordinal in 0 until flags.size) {
+            if (flags[ordinal] and readyOps != 0) {
+                removeSuspension(ordinal)?.block()
+            }
+        }
+    }
+
     inline fun invokeForEachPresent(block: CancellableContinuation<Unit>.(SelectInterest) -> Unit) {
         for (interest in SelectInterest.AllInterests) {
             removeSuspension(interest)?.run { block(interest) }
@@ -41,6 +52,7 @@ class InterestSuspensionsMap {
     }
 
     fun removeSuspension(interest: SelectInterest): CancellableContinuation<Unit>? = updater(interest).getAndSet(this, null)
+    fun removeSuspension(interestOrdinal: Int): CancellableContinuation<Unit>? = updaters[interestOrdinal].getAndSet(this, null)
 
     override fun toString(): String {
         return "R $readHandlerReference W $writeHandlerReference C $connectHandlerReference A $acceptHandlerReference"

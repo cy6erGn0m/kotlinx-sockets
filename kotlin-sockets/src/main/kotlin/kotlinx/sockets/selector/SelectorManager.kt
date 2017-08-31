@@ -38,7 +38,8 @@ enum class SelectInterest(val flag: Int) {
     CONNECT(SelectionKey.OP_CONNECT);
 
     companion object {
-        val AllInterests = values()
+        val AllInterests: Array<SelectInterest> = values()
+        val flags: IntArray = values().map { it.flag }.toIntArray()
     }
 }
 

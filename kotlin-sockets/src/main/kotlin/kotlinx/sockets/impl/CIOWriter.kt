@@ -6,8 +6,8 @@ import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import java.nio.channels.*
 
-internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByteChannel, selectable: Selectable, selector: SelectorManager): ReaderJob {
-    val buffer = ByteBuffer.allocateDirect(65536)
+internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByteChannel, selectable: Selectable, selector: SelectorManager, pool: ObjectPool<ByteBuffer>): ReaderJob {
+    val buffer = pool.borrow()
 
     return reader(ioCoroutineDispatcher, channel) {
         try {
@@ -29,6 +29,7 @@ internal fun attachForWritingImpl(channel: ByteChannel, nioChannel: WritableByte
                 }
             }
         } finally {
+            pool.recycle(buffer)
             if (nioChannel is SocketChannel) {
                 try {
                     nioChannel.shutdownOutput()

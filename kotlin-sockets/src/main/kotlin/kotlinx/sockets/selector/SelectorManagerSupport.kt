@@ -7,6 +7,8 @@ import java.nio.channels.spi.*
 
 abstract class SelectorManagerSupport internal constructor() : SelectorManager {
     final override val provider: SelectorProvider = SelectorProvider.provider()
+    protected var pending = 0
+    protected var cancelled = 0
 
     protected abstract fun publishInterest(selectable: Selectable)
 
@@ -23,6 +25,21 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         }
     }
 
+    protected fun handleSelectedKeys(selectedKeys: MutableSet<SelectionKey>, keys: Set<SelectionKey>) {
+        val selectedCount = selectedKeys.size
+        pending = keys.size - selectedCount
+        cancelled = 0
+
+        if (selectedCount > 0) {
+            val iter = selectedKeys.iterator()
+            while (iter.hasNext()) {
+                val k = iter.next()
+                handleSelectedKey(k)
+                iter.remove()
+            }
+        }
+    }
+
     protected fun handleSelectedKey(key: SelectionKey) {
         try {
             val readyOps = key.readyOps()
@@ -31,21 +48,24 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
             val subj = key.subject
             if (subj == null) {
                 key.cancel()
+                cancelled++
             } else {
-                for (i in SelectInterest.AllInterests) {
-                    if (i.flag and readyOps != 0) {
-                        subj.suspensions.invokeIfPresent(i) { resume(Unit) }
-                    }
-                }
+                val unit = Unit
+                subj.suspensions.invokeForEachPresent(readyOps) { resume(unit) }
 
                 val newOps = interestOps and readyOps.inv()
                 if (newOps != interestOps) {
                     key.interestOps(newOps)
                 }
+
+                if (newOps != 0) {
+                    pending++
+                }
             }
         } catch (t: Throwable) {
-            // cancelled or rejected?
+            // cancelled or rejected on resume?
             key.cancel()
+            cancelled++
             key.subject?.let { subj ->
                 cancelAllSuspensions(subj, t)
                 key.subject = null
@@ -53,27 +73,28 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
         }
     }
 
-    protected fun applyInterest(selector: Selector, attachment: Selectable) {
-        val channel = attachment.channel
+    protected fun applyInterest(selector: Selector, s: Selectable) {
+        try {
+            val channel = s.channel
+            val key = channel.keyFor(selector)
+            val ops = s.interestedOps
 
-        val existingKey = channel.keyFor(selector)
-        val existingAttachment = existingKey?.subject
+            if (key == null) {
+                if (ops != 0) {
+                    channel.register(selector, ops, s)
+                }
+            } else {
+                if (key.interestOps() != ops) {
+                    key.interestOps(ops)
+                }
+            }
 
-        if (existingKey == null) {
-            try {
-                channel.register(selector, attachment.interestedOps, attachment)
-            } catch (t: Throwable) {
-                cancelAllSuspensions(attachment, t)
+            if (ops != 0) {
+                pending++
             }
-        } else if (existingAttachment == null) {
-            existingKey.cancel()
-            notifyClosedImpl(selector, existingKey, attachment)
-        } else {
-            try {
-                existingKey.interestOps(attachment.interestedOps)
-            } catch (t: Throwable) {
-                cancelAllSuspensions(attachment, t)
-            }
+        } catch (t: Throwable) {
+            s.channel.keyFor(selector)?.cancel()
+            cancelAllSuspensions(s, t)
         }
     }
 
@@ -91,6 +112,13 @@ abstract class SelectorManagerSupport internal constructor() : SelectorManager {
             } catch (t2: Throwable) { // rejected?
                 t2.printStackTrace()
             }
+        }
+    }
+
+    protected fun cancelAllSuspensions(selector: Selector) {
+        selector.keys().forEach { k ->
+            k.cancel()
+            (k.attachment() as? Selectable)?.let { cancelAllSuspensions(it, ClosedSelectorException()) }
         }
     }
 }

@@ -5,6 +5,7 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
+import java.io.*
 import java.net.*
 import java.util.concurrent.*
 
@@ -23,8 +24,11 @@ fun main(args: Array<String>) {
                 try {
                     val client = server.accept()
                     launch(CommonPool) {
-                        client.use {
-                            handleClient(client)
+                        try {
+                            client.use {
+                                handleClient(client)
+                            }
+                        } catch (io: IOException) {
                         }
                     }
                 } catch (e: Throwable) {
@@ -192,7 +196,7 @@ private class Parser(val bb: ByteBuffer) {
     private fun parseVersion(): Boolean {
         if (selectUntilSpace(EOL.ShouldBe) { start, length -> version = bb.stringOf(start, length) }) {
             when (version) {
-                "HTTP/1.0" -> state = State.Body
+                "HTTP/1.0" -> state = State.Headers
                 "HTTP/1.1" -> state = State.Headers
                 else -> throw ParserException("Unsupported HTTP version |$version|")
             }
