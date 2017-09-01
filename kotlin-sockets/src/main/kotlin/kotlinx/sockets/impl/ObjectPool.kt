@@ -22,7 +22,7 @@ private const val MAX_CAPACITY = Int.MAX_VALUE / MULTIPLIER
 abstract class ObjectPoolImpl<T : Any>(final override val capacity: Int) : ObjectPool<T> {
     init {
         require(capacity > 0) { "capacity should be positive but it is $capacity" }
-        require(capacity <= MAX_CAPACITY) { "capacity should be less or equal to ${MAX_CAPACITY} but it is $capacity"}
+        require(capacity <= MAX_CAPACITY) { "capacity should be less or equal to $MAX_CAPACITY but it is $capacity"}
     }
 
     protected abstract fun produceInstance(): T // factory

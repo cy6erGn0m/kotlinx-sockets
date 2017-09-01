@@ -1,4 +1,4 @@
-package kotlinx.sockets.examples.http
+package kotlinx.http.impl
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
@@ -6,6 +6,7 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.Socket
 import kotlinx.sockets.adapters.*
+import kotlinx.sockets.impl.*
 import kotlinx.sockets.selector.*
 import java.io.*
 import java.net.*
@@ -27,14 +28,13 @@ suspend fun httpServer2(deferred: CompletableDeferred<kotlinx.sockets.ServerSock
         aSocket(selector).tcp().bind(InetSocketAddress(9096)).use { server ->
             deferred.complete(server)
             server.openAcceptChannel().consumeEach { client ->
-                launch(callDispatcher) {
+                launch(ioCoroutineDispatcher) {
                     try {
                         client.use {
 //                            stupidHandler(client, client.openReadChannel())
 //                            handleConnectionSimple(client, client.openReadChannel())
-                            handleConnectionSimple(client, client.openReadChannel())
-//                            handleConnectionPipeline(client, client.openReadChannel())
-//                            handleConnectionPipeline(client, client.openReadChannel())
+//                            handleConnectionSimple(client, client.openReadChannel())
+                            handleConnectionPipeline(client, client.openReadChannel())
                         }
                     } catch (io: IOException) {
                     }
@@ -48,7 +48,7 @@ suspend fun httpServer2(deferred: CompletableDeferred<kotlinx.sockets.ServerSock
 val CHAR_BUFFER_POOL_SIZE = 4096
 val CHAR_BUFFER_SIZE = 4096
 
-internal val CharBufferPool: kotlinx.sockets.impl.ObjectPool<CharBuffer> =
+internal val CharBufferPool: ObjectPool<CharBuffer> =
         object : kotlinx.sockets.impl.ObjectPoolImpl<CharBuffer>(CHAR_BUFFER_POOL_SIZE) {
             override fun produceInstance(): CharBuffer =
                     ByteBuffer.allocateDirect(CHAR_BUFFER_SIZE).asCharBuffer()
@@ -59,6 +59,7 @@ internal val CharBufferPool: kotlinx.sockets.impl.ObjectPool<CharBuffer> =
 
 
 private val stupidResponse = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nContent-Type: text/plain\r\n\r\nHello, World\n".toByteArray()
+@Suppress("unused")
 private suspend fun stupidHandler(socket: Socket, input: ByteReadChannel) {
     val ch = socket.openWriteChannel()
     val buffer = CharBufferPool.borrow()
@@ -86,7 +87,7 @@ private suspend fun handleConnectionSimple(socket: Socket, input: ByteReadChanne
 
     try {
         while (true) {
-            val request = parseRequest1(input) ?: return
+            val request = parseRequest(input) ?: return
 
             // TODO request body
 
@@ -114,16 +115,20 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
 
     try {
         while (true) {
-            val request = parseRequest1(input) ?: return
-
-            // TODO request body
+            val request = parseRequest(input) ?: return
+            val expectedHttpBody = expectHttpBody(request)
+            val requestBody = if (expectedHttpBody) ByteChannel() else EmptyByteReadChannel
 
             val response = ByteChannel()
             outputs.send(response)
 
             launch(callDispatcher) {
-                handleRequest2(request, EmptyByteReadChannel, response)
+                handleRequest2(request, requestBody, response)
                 response.close()
+            }
+
+            if (expectedHttpBody) {
+                parseHttpBody(request, input, output)
             }
         }
     } finally {

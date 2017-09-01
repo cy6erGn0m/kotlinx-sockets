@@ -43,13 +43,13 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, selecto
 
     suspend override fun receive(dst: ByteBuffer): SocketAddress {
         val datagram = receive()
-        datagram.packet.readLazy(dst)
+        datagram.packet.readAvailable(dst)
         return datagram.address
     }
 
     suspend override fun send(datagram: Datagram) {
         val buffer = ByteBuffer.allocateDirect(datagram.packet.remaining)
-        datagram.packet.readLazy(buffer)
+        datagram.packet.readAvailable(buffer)
         buffer.flip()
 
         val rc = channel.send(buffer, datagram.address)

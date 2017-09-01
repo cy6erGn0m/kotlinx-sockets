@@ -35,10 +35,10 @@ private class GroupThreadFactory(val group: ThreadGroup, val isDaemon: Boolean) 
     }
 }
 
-internal val DefaultByteBufferPool = DirectByteBufferPool(4096, 2048)
+val DefaultByteBufferPool = DirectByteBufferPool(4096, 2048)
 internal val DefaultDatagramByteBufferPool = DirectByteBufferPool(65536, 2048)
 
-internal class DirectByteBufferPool(val bufferSize: Int, size: Int) : ObjectPoolImpl<ByteBuffer>(size) {
+class DirectByteBufferPool(val bufferSize: Int, size: Int) : ObjectPoolImpl<ByteBuffer>(size) {
     override fun produceInstance(): ByteBuffer = java.nio.ByteBuffer.allocateDirect(bufferSize)
 
     override fun clearInstance(instance: ByteBuffer): ByteBuffer {

@@ -1,6 +1,6 @@
-package kotlinx.sockets.examples.http
+package kotlinx.http.impl
 
-class AsciiCharTree<T : Any>(val root: Node<T>) {
+internal class AsciiCharTree<T : Any>(val root: Node<T>) {
     class Node<T>(val ch: Char, val exact: List<T>, val children: List<Node<T>>) {
         val array = Array(0x100) { chi -> children.singleOrNull { it.ch.toInt() == chi } }
     }

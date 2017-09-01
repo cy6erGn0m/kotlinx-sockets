@@ -1,4 +1,4 @@
-package kotlinx.sockets.examples.http
+package kotlinx.http.impl
 
 class HttpMethod(val name: CharSequence) {
     companion object {
@@ -10,7 +10,7 @@ class HttpMethod(val name: CharSequence) {
         val OPTIONS = HttpMethod("OPTIONS")
 
         val allDefaults = listOf(GET, POST, PUT, DELETE, HEAD, OPTIONS)
-        val defaults = run {
+        internal val defaults = run {
             AsciiCharTree.build(allDefaults, { it.name.length }, { m, idx -> m.name[idx] })
         }
     }
