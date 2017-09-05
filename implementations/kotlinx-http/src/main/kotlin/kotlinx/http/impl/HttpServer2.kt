@@ -128,7 +128,7 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
             }
 
             if (expectedHttpBody) {
-                parseHttpBody(request, input, output)
+                parseHttpBody(request.headers, input, output)
             }
         }
     } finally {
