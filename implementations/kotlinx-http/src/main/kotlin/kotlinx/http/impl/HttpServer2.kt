@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
+import kotlinx.sockets.ServerSocket
 import kotlinx.sockets.Socket
 import kotlinx.sockets.adapters.*
 import kotlinx.sockets.impl.*
@@ -23,25 +24,40 @@ fun main(args: Array<String>) {
     }
 }
 
-suspend fun httpServer2(deferred: CompletableDeferred<kotlinx.sockets.ServerSocket>) {
-    ActorSelectorManager().use { selector ->
-        aSocket(selector).tcp().bind(InetSocketAddress(9096)).use { server ->
-            deferred.complete(server)
-            server.openAcceptChannel().consumeEach { client ->
-                launch(ioCoroutineDispatcher) {
-                    try {
-                        client.use {
-//                            stupidHandler(client, client.openReadChannel())
-//                            handleConnectionSimple(client, client.openReadChannel())
-//                            handleConnectionSimple(client, client.openReadChannel())
-                            handleConnectionPipeline(client, client.openReadChannel())
+fun httpServer(handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
+    val deferred = CompletableDeferred<ServerSocket>()
+
+    val j = launch(ioCoroutineDispatcher) {
+        ActorSelectorManager().use { selector ->
+            aSocket(selector).tcp().bind(InetSocketAddress(9096)).use { server ->
+                deferred.complete(server)
+                server.openAcceptChannel().consumeEach { client ->
+                    launch(ioCoroutineDispatcher) {
+                        try {
+                            handleConnectionPipeline(client, client.openReadChannel(), handler)
+                        } catch (io: IOException) {
+                        } finally {
+                            client.close()
                         }
-                    } catch (io: IOException) {
                     }
                 }
             }
         }
     }
+
+    return Pair(j, deferred)
+}
+
+private suspend fun httpServer2(deferred: CompletableDeferred<kotlinx.sockets.ServerSocket>) {
+    val (j, s) = httpServer { r, i, o ->
+        handleRequest2(r, i, o)
+    }
+
+    s.invokeOnCompletion { t ->
+        if (t != null) deferred.completeExceptionally(t) else deferred.complete(s.getCompleted())
+    }
+
+    j.join()
 }
 
 
@@ -82,23 +98,7 @@ private suspend fun stupidHandler(socket: Socket, input: ByteReadChannel) {
     }
 }
 
-private suspend fun handleConnectionSimple(socket: Socket, input: ByteReadChannel) {
-    val output = socket.openWriteChannel()
-
-    try {
-        while (true) {
-            val request = parseRequest(input) ?: return
-
-            // TODO request body
-
-            handleRequest2(request, EmptyByteReadChannel, output)
-        }
-    } finally {
-        output.close()
-    }
-}
-
-private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel) {
+private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit) {
     val output = socket.openWriteChannel()
     val outputs = actor<ByteReadChannel>(ioCoroutineDispatcher, capacity = 5) {
         try {
@@ -123,8 +123,13 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
             outputs.send(response)
 
             launch(callDispatcher) {
-                handleRequest2(request, requestBody, response)
-                response.close() // TODO handle exceptions
+                try {
+                    handler(request, requestBody, response)
+                } catch (t: Throwable) {
+                    response.close(t)
+                } finally {
+                    response.close()
+                }
             }
 
             if (expectedHttpBody && requestBody is ByteWriteChannel) {
