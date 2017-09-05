@@ -1,6 +1,8 @@
 package kotlinx.http.impl
 
 class HttpMethod(val name: CharSequence) {
+    override fun toString() = name.toString()
+
     companion object {
         val GET = HttpMethod("GET")
         val POST = HttpMethod("POST")

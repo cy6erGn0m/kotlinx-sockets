@@ -124,11 +124,17 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
 
             launch(callDispatcher) {
                 handleRequest2(request, requestBody, response)
-                response.close()
+                response.close() // TODO handle exceptions
             }
 
-            if (expectedHttpBody) {
-                parseHttpBody(request.headers, input, output)
+            if (expectedHttpBody && requestBody is ByteWriteChannel) {
+                try {
+                    parseHttpBody(request.headers, input, requestBody)
+                } catch (t: Throwable) {
+                    requestBody.close(t)
+                } finally {
+                    requestBody.close()
+                }
             }
         }
     } finally {
