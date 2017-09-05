@@ -30,6 +30,15 @@ internal class CharBufferBuilder : CharSequence, Appendable {
 
     override fun toString() = stringified ?: copy(0, length).toString().also { stringified = it }
 
+    override fun equals(other: Any?): Boolean {
+        if (other !is CharSequence) return false
+        if (length != other.length) return false
+
+        return rangeEqualsImpl(0, other, 0, length)
+    }
+
+    override fun hashCode() = stringified?.hashCode() ?: hashCodeImpl(0, length)
+
     override fun append(c: Char): Appendable {
         nonFullBuffer().put(c)
         stringified = null
@@ -117,6 +126,15 @@ internal class CharBufferBuilder : CharSequence, Appendable {
         }
 
         override fun toString() = stringified ?: copy(start, end).toString().also { stringified = it }
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is CharSequence) return false
+            if (other.length != length) return false
+
+            return rangeEqualsImpl(start, this@CharBufferBuilder, 0, length)
+        }
+
+        override fun hashCode() = stringified?.hashCode() ?: hashCodeImpl(start, end)
     }
 
     private tailrec fun append(csq: CharSequence, start: Int, end: Int, buffer: CharBuffer) {
@@ -158,5 +176,22 @@ internal class CharBufferBuilder : CharSequence, Appendable {
         }
 
         return newBuffer
+    }
+
+    private fun rangeEqualsImpl(start: Int, other: CharSequence, otherStart: Int, length: Int): Boolean {
+        for (i in 0 until length) {
+            if (getImpl(start + i) != other[otherStart + i]) return false
+        }
+
+        return true
+    }
+
+    private fun hashCodeImpl(start: Int, end: Int): Int {
+        var hc = 0
+        for (i in start until end) {
+            hc = 31 * hc + getImpl(i).toInt()
+        }
+
+        return hc
     }
 }

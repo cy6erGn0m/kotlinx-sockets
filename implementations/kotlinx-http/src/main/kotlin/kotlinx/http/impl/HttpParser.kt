@@ -181,7 +181,7 @@ private suspend fun copyMultipartDummy(headers: HttpHeaders, input: ByteReadChan
     input.copyTo(out, length)
 }
 
-private suspend fun parseHeaders(input: ByteReadChannel, builder: CharBufferBuilder, range: MutableRange): HttpHeaders? {
+internal suspend fun parseHeaders(input: ByteReadChannel, builder: CharBufferBuilder, range: MutableRange): HttpHeaders? {
     val headers = HttpHeaders(builder)
 
     try {
@@ -370,9 +370,10 @@ private val HexTable = (0..0xff).map { v ->
 
 internal fun CharSequence.parseHexLong(): Long {
     var result = 0L
+    val table = HexTable
     for (i in 0 until length) {
         val v = this[i].toInt() and 0xffff
-        val digit = if (v < 0xff) HexTable[v] else -1L
+        val digit = if (v < 0xff) table[v] else -1L
         if (digit == -1L) throw NumberFormatException("Invalid HEX number: $this, wrong digit: ${this[i]}")
 
         result = (result shl 4) or digit
@@ -381,11 +382,19 @@ internal fun CharSequence.parseHexLong(): Long {
     return result
 }
 
-private class MutableRange(var start: Int, var end: Int) {
-    override fun toString(): String {
-        return "MutableRange(start=$start, end=$end)"
+internal fun CharSequence.parseDecLong(): Long {
+    var result = 0L
+    for (i in 0 until length) {
+        val v = this[i].toInt() and 0xffff
+        val digit = if (v in 0x30..0x39) v.toLong() - 0x30 else -1L
+        if (digit == -1L) throw NumberFormatException("Invalid number: $this, wrong digit: ${this[i]}")
+
+        result = (result * 10) or digit
     }
+
+    return result
 }
+
 private class ParserException(message: String) : Exception(message)
 
 private val IntArrayPool = object : ObjectPoolImpl<IntArray>(HEADER_ARRAY_POOL_SIZE) {
