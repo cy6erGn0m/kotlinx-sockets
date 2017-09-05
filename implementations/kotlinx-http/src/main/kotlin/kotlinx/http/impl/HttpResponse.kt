@@ -32,6 +32,14 @@ class RequestResponseBuilder {
         packet.writeByte(LF)
     }
 
+    fun bytes(content: ByteArray, offset: Int = 0, length: Int = content.size) {
+        packet.writeFully(content, offset, length)
+    }
+
+    fun bytes(content: ByteBuffer) {
+        packet.writeFully(content)
+    }
+
     fun headerLine(name: CharSequence, value: CharSequence) {
         packet.append(name)
         packet.append(": ")
