@@ -1,5 +1,6 @@
-package kotlinx.http.impl
+package kotlinx.http.internals
 
+import kotlinx.http.*
 import java.nio.*
 
 @Suppress("LoopToCallChain", "ReplaceRangeToWithUntil")
@@ -153,7 +154,7 @@ internal class CharBufferBuilder : CharSequence, Appendable {
         val list = buffers
 
         if (list == null) {
-            if (index >= CHAR_BUFFER_SIZE) throw IndexOutOfBoundsException("$index is not in range [0; $CHAR_BUFFER_SIZE)")
+            if (index >= CHAR_BUFFER_SIZE) throw IndexOutOfBoundsException("$index is not in range [0; ${CHAR_BUFFER_SIZE})")
             return current ?: throw IndexOutOfBoundsException("$index is not in range [0; 0)")
         }
 

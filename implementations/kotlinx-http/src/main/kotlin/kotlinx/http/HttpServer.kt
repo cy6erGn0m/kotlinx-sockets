@@ -1,4 +1,4 @@
-package kotlinx.http.impl
+package kotlinx.http
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
@@ -15,14 +15,7 @@ import java.nio.*
 import java.nio.ByteBuffer
 import kotlin.coroutines.experimental.*
 
-
 private val callDispatcher: CoroutineContext = ioCoroutineDispatcher //IOCoroutineDispatcher(8)
-
-fun main(args: Array<String>) {
-    runBlocking {
-        httpServer2(CompletableDeferred())
-    }
-}
 
 fun httpServer(handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
     val deferred = CompletableDeferred<ServerSocket>()
@@ -48,21 +41,8 @@ fun httpServer(handler: suspend (request: Request, input: ByteReadChannel, outpu
     return Pair(j, deferred)
 }
 
-private suspend fun httpServer2(deferred: CompletableDeferred<kotlinx.sockets.ServerSocket>) {
-    val (j, s) = httpServer { r, i, o ->
-        handleRequest2(r, i, o)
-    }
-
-    s.invokeOnCompletion { t ->
-        if (t != null) deferred.completeExceptionally(t) else deferred.complete(s.getCompleted())
-    }
-
-    j.join()
-}
-
-
-val CHAR_BUFFER_POOL_SIZE = 4096
-val CHAR_BUFFER_SIZE = 4096
+internal val CHAR_BUFFER_POOL_SIZE = 4096
+internal val CHAR_BUFFER_SIZE = 4096
 
 internal val CharBufferPool: ObjectPool<CharBuffer> =
         object : kotlinx.sockets.impl.ObjectPoolImpl<CharBuffer>(CHAR_BUFFER_POOL_SIZE) {

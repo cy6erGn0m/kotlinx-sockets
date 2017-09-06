@@ -1,9 +1,8 @@
 package kotlinx.sockets.benchmarks
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.http.*
 import kotlinx.sockets.*
-import kotlinx.sockets.examples.*
-import kotlinx.sockets.examples.http.*
 import org.openjdk.jmh.annotations.*
 
 @State(Scope.Benchmark)
@@ -14,7 +13,7 @@ open class ParseHttpBenchmark {
     fun run() {
         runBlocking {
             launch(CommonPool) {
-                httpServer2(serverSocket)
+                exampleHttpServer(serverSocket)
             }
             serverSocket.await()
         }

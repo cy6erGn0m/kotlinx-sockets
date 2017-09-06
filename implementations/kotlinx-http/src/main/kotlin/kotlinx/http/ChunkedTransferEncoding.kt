@@ -1,4 +1,4 @@
-package kotlinx.http.impl
+package kotlinx.http
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
@@ -14,12 +14,20 @@ private val ChunkSizeBufferPool: ObjectPool<StringBuilder> = object: ObjectPoolI
     override fun clearInstance(instance: StringBuilder) = instance.delete(0, instance.length)
 }
 
+suspend fun decodeChunked(input: ByteReadChannel): ByteReadChannel {
+    val out = ByteChannel()
+    launch(ioCoroutineDispatcher, start = CoroutineStart.UNDISPATCHED) {
+        decodeChunked(input, out)
+    }
+    return out
+}
+
 suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
     val chunkSizeBuffer = ChunkSizeBufferPool.borrow()
 
     try {
         while (true) {
-            chunkSizeBuffer.delete(0, chunkSizeBuffer.length)
+            chunkSizeBuffer.clear()
             if (!input.readUTF8LineTo(chunkSizeBuffer, MAX_CHUNK_SIZE_LENGTH)) {
                 throw EOFException("Chunked stream has ended unexpectedly: no chunk size")
             } else if (chunkSizeBuffer.isEmpty()) {
@@ -30,6 +38,14 @@ suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
             val chunkSize = chunkSizeBuffer.parseHexLong()
             input.copyTo(out, chunkSize)
             out.flush()
+
+            chunkSizeBuffer.clear()
+            if (!input.readUTF8LineTo(chunkSizeBuffer, 2)) {
+                throw EOFException("Invalid chunk: content block ended unexpectedly")
+            }
+            if (chunkSizeBuffer.isNotEmpty()) {
+                throw EOFException("Invalid chunk: content block should end with CR+LF")
+            }
         }
     } catch (t: Throwable) {
         out.close(t)
@@ -54,6 +70,7 @@ suspend fun encodeChunked(output: ByteWriteChannel): ByteWriteChannel {
     return raw
 }
 
+private val CrLf = "\r\n".toByteArray()
 private val LastChunkBytes = "0\r\n".toByteArray()
 suspend fun encodeChunked(input: ByteReadChannel, output: ByteWriteChannel) {
     val chunkSizeBuffer = ChunkSizeBufferPool.borrow()
@@ -71,15 +88,23 @@ suspend fun encodeChunked(input: ByteReadChannel, output: ByteWriteChannel) {
             chunkSizeBuffer.append("\r\n")
             output.writeStringUtf8(chunkSizeBuffer)
             output.writeFully(buffer)
+            output.writeFully(CrLf)
             output.flush()
 
-            chunkSizeBuffer.delete(0, chunkSizeBuffer.length)
+            chunkSizeBuffer.clear()
+            buffer.clear()
         }
 
         output.writeFully(LastChunkBytes)
+    } catch (t: Throwable) {
+        output.close(t)
     } finally {
         output.flush()
         DefaultByteBufferPool.recycle(buffer)
         ChunkSizeBufferPool.recycle(chunkSizeBuffer)
     }
+}
+
+private fun StringBuilder.clear() {
+    delete(0, length)
 }

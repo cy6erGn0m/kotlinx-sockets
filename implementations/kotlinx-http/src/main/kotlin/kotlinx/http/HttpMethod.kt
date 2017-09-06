@@ -1,4 +1,6 @@
-package kotlinx.http.impl
+package kotlinx.http
+
+import kotlinx.http.internals.*
 
 class HttpMethod(val name: CharSequence) {
     override fun toString() = name.toString()

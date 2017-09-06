@@ -1,4 +1,4 @@
-package kotlinx.http.impl
+package kotlinx.http
 
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
@@ -53,8 +53,10 @@ class RequestResponseBuilder {
         packet.writeByte(LF)
     }
 
+    fun build(): ByteReadPacket = packet.build()
+
     suspend fun writeTo(out: ByteWriteChannel) {
-        out.writePacket(packet.build())
+        out.writePacket(build())
     }
 
     fun release() {

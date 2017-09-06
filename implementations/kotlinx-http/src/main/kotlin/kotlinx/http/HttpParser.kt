@@ -1,76 +1,7 @@
-package kotlinx.http.impl
+package kotlinx.http
 
 import kotlinx.coroutines.experimental.io.*
-import kotlinx.sockets.impl.*
-
-abstract class HttpMessage internal constructor(val headers: HttpHeaders, private val builder: CharBufferBuilder) {
-    fun release() {
-        builder.release()
-        headers.release()
-    }
-}
-
-class Request internal constructor(val method: HttpMethod, val uri: CharSequence, val version: CharSequence, headers: HttpHeaders, builder: CharBufferBuilder) : HttpMessage(headers, builder)
-
-class Response internal constructor(val version: CharSequence, val status: Int, val statusText: CharSequence, headers: HttpHeaders, builder: CharBufferBuilder) : HttpMessage(headers, builder)
-
-private const val EXPECTED_HEADERS_QTY = 32
-/*
- * index array structure
- * [0] = name hash
- * [1] = value hash
- * [2] name start index
- * [3] name end (excl) index
- * [4] value start index
- * [5] value end (excl) index
- * [6] next entry index (multiplied) with the same name hash
- * [7] reserved
- */
-private const val HEADER_SIZE = 8
-
-private const val HEADER_ARRAY_POOL_SIZE = 1000
-
-class HttpHeaders internal constructor(private val builder: CharBufferBuilder) {
-    var size = 0
-        private set
-
-    private var indexes = IntArrayPool.borrow()
-
-    fun put(nameHash: Int, valueHash: Int, nameStartIndex: Int, nameEndIndex: Int, valueStartIndex: Int, valueEndIndex: Int) {
-        val base = size * HEADER_SIZE
-        val array = indexes
-
-        if (base >= indexes.size) TODO("Implement headers overflow")
-
-        array[base + 0] = nameHash
-        array[base + 1] = valueHash
-        array[base + 2] = nameStartIndex
-        array[base + 3] = nameEndIndex
-        array[base + 4] = valueStartIndex
-        array[base + 5] = valueEndIndex
-        array[base + 6] = -1  // TODO
-        array[base + 7] = -1
-
-        size ++
-    }
-
-    operator fun get(name: String): CharSequence? {
-        val nameHash = name.hashCodeLowerCase()
-        for (i in 0 until size) {
-            val offset = i * HEADER_SIZE
-            if (indexes[offset] == nameHash) {
-                return builder.subSequence(indexes[offset + 4], indexes[offset + 5])
-            }
-        }
-
-        return null
-    }
-
-    fun release() {
-        size = 0
-        IntArrayPool.recycle(indexes)
-    }
-}
+import kotlinx.http.internals.*
 
 suspend fun parseRequest(input: ByteReadChannel): Request? {
     val builder = CharBufferBuilder()
@@ -181,7 +112,7 @@ private suspend fun copyMultipartDummy(headers: HttpHeaders, input: ByteReadChan
     input.copyTo(out, length)
 }
 
-internal suspend fun parseHeaders(input: ByteReadChannel, builder: CharBufferBuilder, range: MutableRange): HttpHeaders? {
+internal suspend fun parseHeaders(input: ByteReadChannel, builder: CharBufferBuilder, range: MutableRange = MutableRange(0, 0)): HttpHeaders? {
     val headers = HttpHeaders(builder)
 
     try {
@@ -396,10 +327,6 @@ internal fun CharSequence.parseDecLong(): Long {
 }
 
 private class ParserException(message: String) : Exception(message)
-
-private val IntArrayPool = object : ObjectPoolImpl<IntArray>(HEADER_ARRAY_POOL_SIZE) {
-    override fun produceInstance(): IntArray = IntArray(EXPECTED_HEADERS_QTY * HEADER_SIZE)
-}
 
 internal fun CharSequence.hashCodeLowerCase(start: Int = 0, end: Int = length): Int {
     var hashCode = 0

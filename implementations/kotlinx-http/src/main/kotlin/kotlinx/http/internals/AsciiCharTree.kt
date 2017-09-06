@@ -1,4 +1,4 @@
-package kotlinx.http.impl
+package kotlinx.http.internals
 
 internal class AsciiCharTree<T : Any>(val root: Node<T>) {
     class Node<T>(val ch: Char, val exact: List<T>, val children: List<Node<T>>) {
