@@ -10,6 +10,30 @@ import kotlinx.sockets.*
 import java.io.*
 import java.nio.*
 
+sealed class MultipartEvent {
+    abstract fun release()
+    class Preamble(val body: ByteReadPacket) : MultipartEvent() {
+        override fun release() {
+            body.release()
+        }
+    }
+    class MultipartPart(val headers: Deferred<HttpHeaders>, val body: ByteReadChannel) : MultipartEvent() {
+        override fun release() {
+            headers.invokeOnCompletion { t ->
+                if (t != null) {
+                    headers.getCompleted().release()
+                }
+            }
+            // TODO body
+        }
+    }
+    class Epilogue(val body: ByteReadPacket) : MultipartEvent() {
+        override fun release() {
+            body.release()
+        }
+    }
+}
+
 suspend fun copyMultipart(headers: HttpHeaders, input: ByteReadChannel, out: ByteWriteChannel) {
     val length = headers["Content-Length"]?.parseDecLong() ?: Long.MAX_VALUE
     input.copyTo(out, length)
@@ -64,30 +88,6 @@ suspend fun boundary(boundaryPrefixed: ByteBuffer, input: ByteReadChannel): Bool
     return result
 }
 
-sealed class MultipartEvent {
-    abstract fun release()
-    class Preamble(val body: ByteReadPacket) : MultipartEvent() {
-        override fun release() {
-            body.release()
-        }
-    }
-    class MultipartPart(val headers: Deferred<HttpHeaders>, val body: ByteReadChannel) : MultipartEvent() {
-        override fun release() {
-            headers.invokeOnCompletion { t ->
-                if (t != null) {
-                    headers.getCompleted().release()
-                }
-            }
-            // TODO body
-        }
-    }
-    class Epilogue(val body: ByteReadPacket) : MultipartEvent() {
-        override fun release() {
-            body.release()
-        }
-    }
-}
-
 private val headerParameterEndChars = charArrayOf(' ', ';', ',')
 fun parseMultipart(input: ByteReadChannel, headers: HttpHeaders): ReceiveChannel<MultipartEvent> {
     val contentType = headers["Content-Type"] ?: throw IOException("Failed to parse multipart: no Content-Type header")
@@ -98,10 +98,13 @@ fun parseMultipart(input: ByteReadChannel, headers: HttpHeaders): ReceiveChannel
     val boundaryEnd = contentType.indexOfAny(headerParameterEndChars, boundaryStart)
     val boundaryLength = if (boundaryEnd == -1) contentType.length - boundaryStart else boundaryEnd - boundaryStart
 
+    // RFC 2046, sec 5.1.1
+    if (boundaryLength > 70) throw IOException("Failed to parse multipart: boundary shouldn't be longer than 70 characters")
+
     val boundaryBytes: ByteBuffer = ByteBuffer.allocate(boundaryLength + 4)
     val pch = PrefixChar
-//    boundaryBytes.put(0x0d)
-//    boundaryBytes.put(0x0a)
+    boundaryBytes.put(0x0d)
+    boundaryBytes.put(0x0a)
     boundaryBytes.put(pch)
     boundaryBytes.put(pch)
 
@@ -121,29 +124,40 @@ fun parseMultipart(input: ByteReadChannel, headers: HttpHeaders): ReceiveChannel
 }
 
 private val EmptyCharBuffer = CharBuffer.allocate(0)!!
+private val CrLf = ByteBuffer.wrap("\r\n".toByteArray())!!
+private val BoundaryTrailingBuffer = ByteBuffer.allocate(8192)!!
+
 fun parseMultipart(boundaryPrefixed: ByteBuffer, input: ByteReadChannel, totalLength: Long?): ReceiveChannel<MultipartEvent> {
     return produce(ioCoroutineDispatcher) {
-        var complete = 0L
+        val readBeforeParse = input.totalBytesRead
+        val firstBoundary = boundaryPrefixed.duplicate()!!.apply {
+            position(2)
+        }
 
         val preamble = WritePacket()
-//        complete += parsePreamble(boundaryPrefixed, input, preamble)
+        parsePreamble(firstBoundary, input, preamble, 8192)
 
         if (preamble.size > 0) {
             channel.send(MultipartEvent.Preamble(preamble.build()))
         }
 
-        if (!boundary(boundaryPrefixed, input)) return@produce
+        if (boundary(firstBoundary, input)) {
+            return@produce
+        }
+
+        val trailingBuffer = BoundaryTrailingBuffer.duplicate()
 
         do {
-            if (!input.readUTF8LineTo(EmptyCharBuffer, limit = 0)) {
-                break
-            }
+            input.readUntilDelimiter(CrLf, trailingBuffer)
+            if (input.readUntilDelimiter(CrLf, trailingBuffer) != 0) throw IOException("Failed to parse multipart: boundary line is too long")
+            input.skipDelimiter(CrLf)
+
             val body = ByteChannel()
             val headers = CompletableDeferred<HttpHeaders>()
             val part = MultipartEvent.MultipartPart(headers, body)
             channel.send(part)
 
-            val (hh, size) = try {
+            val (hh, _) = try {
                 parsePart(boundaryPrefixed, input, body)
             } catch (t: Throwable) {
                 headers.completeExceptionally(t)
@@ -153,16 +167,15 @@ fun parseMultipart(boundaryPrefixed: ByteBuffer, input: ByteReadChannel, totalLe
 
             headers.complete(hh)
             body.close()
-            complete += size
         } while (!boundary(boundaryPrefixed, input))
 
         if (totalLength != null) {
-            val size = totalLength - complete
-            if (size > Int.MAX_VALUE) throw IOException("Prologue is too long")
-            // TODO disable temporary as complete is not correctly counted
-//            if (size > 0) {
-//                channel.send(MultipartEvent.Epilogue(input.readPacket(size.toInt())))
-//            }
+            val consumedExceptEpilogue = input.totalBytesRead - readBeforeParse
+            val size = totalLength - consumedExceptEpilogue
+            if (size > Int.MAX_VALUE) throw IOException("Failed to parse multipart: prologue is too long")
+            if (size > 0) {
+                channel.send(MultipartEvent.Epilogue(input.readPacket(size.toInt())))
+            }
         } else {
             // TODO epilogue size?
         }

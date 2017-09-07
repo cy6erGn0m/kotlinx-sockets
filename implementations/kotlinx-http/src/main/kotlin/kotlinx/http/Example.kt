@@ -11,13 +11,13 @@ import java.net.*
 import java.nio.channels.*
 
 
-fun main0(args: Array<String>) {
+fun main(args: Array<String>) {
     runBlocking {
         exampleHttpServer(CompletableDeferred())
     }
 }
 
-fun main(args: Array<String>) {
+fun main0(args: Array<String>) {
     runBlocking {
         aSocket().tcp().bind(InetSocketAddress(9096)).use { s ->
             s.openAcceptChannel().consumeEach { client ->
@@ -68,7 +68,7 @@ private suspend fun handleRequest(request: Request, input: ByteReadChannel, outp
                     return
                 }
 
-                val requestBody = input.readAll()
+                val requestBody = input.readRemaining()
                 try {
                     val size = requestBody.remaining
                     println(requestBody.inputStream().reader().readText())
@@ -102,7 +102,7 @@ private suspend fun handleRequest(request: Request, input: ByteReadChannel, outp
                         println(evt)
                         if (evt is MultipartEvent.MultipartPart) {
                             evt.headers.await().dump("  ")
-                            val content = evt.body.readAll()
+                            val content = evt.body.readRemaining()
                             bytesUploaded += content.remaining
                             println("  > content: ${content.remaining}")
                             content.release()
