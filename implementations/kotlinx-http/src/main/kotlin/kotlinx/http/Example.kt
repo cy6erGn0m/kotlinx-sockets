@@ -78,6 +78,10 @@ private suspend fun handleRequest(request: Request, input: ByteReadChannel, outp
                     requestBody.release()
                 }
             }
+            request.uri.startsWith("/chunked") -> {
+                respondChunked(output)
+                return
+            }
             request.uri.startsWith("/mp") -> {
                 if (request.method == HttpMethod.GET) {
                     respondText(output, 200, "OK", "text/html", """
@@ -144,6 +148,35 @@ private suspend fun respondText(output: ByteWriteChannel, statusCode: Int, statu
 
         output.writeStringUtf8(body)
         output.flush()
+    } finally {
+        response.release()
+    }
+}
+
+private suspend fun respondChunked(output: ByteWriteChannel) {
+    val response = RequestResponseBuilder()
+
+    try {
+        response.responseLine("HTTP/1.1", 200, "OK")
+        response.headerLine("Connection", "keep-alive")
+        response.headerLine("Content-Type", "text/plain")
+        response.headerLine("Transfer-Encoding", "chunked")
+        response.emptyLine()
+        response.writeTo(output)
+        response.release()
+        output.flush()
+
+        val chunked = encodeChunked(output)
+
+        chunked.writeStringUtf8("Hello, my dear\n")
+        chunked.flush()
+        delay(100)
+        chunked.writeStringUtf8("Another line\n")
+        chunked.flush()
+        delay(100)
+        chunked.close()
+
+        delay(1000)
     } finally {
         response.release()
     }
