@@ -17,12 +17,12 @@ import kotlin.coroutines.experimental.*
 
 private val callDispatcher: CoroutineContext = ioCoroutineDispatcher //IOCoroutineDispatcher(8)
 
-fun httpServer(handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
+fun httpServer(port: Int = 9096, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
     val deferred = CompletableDeferred<ServerSocket>()
 
     val j = launch(ioCoroutineDispatcher) {
         ActorSelectorManager().use { selector ->
-            aSocket(selector).tcp().bind(InetSocketAddress(9096)).use { server ->
+            aSocket(selector).tcp().bind(InetSocketAddress(port)).use { server ->
                 deferred.complete(server)
                 server.openAcceptChannel().consumeEach { client ->
                     launch(ioCoroutineDispatcher) {
