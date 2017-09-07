@@ -17,21 +17,18 @@ class ChunkedTest {
         decodeChunked(ch, parsed)
     }
 
-    @Test
+    @Test(expected = EOFException::class)
     fun testEmptyWithoutCrLf() = runBlocking {
         val bodyText = "0"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
         decodeChunked(ch, parsed)
-
-        assertEquals(0, parsed.availableForRead)
-        assertTrue { parsed.isClosedForRead }
     }
 
     @Test
     fun testEmpty() = runBlocking {
-        val bodyText = "0\r\n"
+        val bodyText = "0\r\n\r\n"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
@@ -43,7 +40,7 @@ class ChunkedTest {
 
     @Test
     fun testEmptyWithTrailing() = runBlocking {
-        val bodyText = "0\r\ntrailing"
+        val bodyText = "0\r\n\r\ntrailing"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
@@ -51,12 +48,12 @@ class ChunkedTest {
 
         assertEquals(0, parsed.availableForRead)
         assertTrue { parsed.isClosedForRead }
-        assertEquals("trailing", ch.readUTF8Line())
+        assertEquals("trailing", ch.readRemaining().readText().toString())
     }
 
     @Test
     fun testContent() = runBlocking {
-        val bodyText = "3\r\n123\r\n0\r\n"
+        val bodyText = "3\r\n123\r\n0\r\n\r\n"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
@@ -67,7 +64,7 @@ class ChunkedTest {
 
     @Test
     fun testContentMultipleChunks() = runBlocking {
-        val bodyText = "3\r\n123\r\n2\r\n45\r\n1\r\n6\r\n0\r\n"
+        val bodyText = "3\r\n123\r\n2\r\n45\r\n1\r\n6\r\n0\r\n\r\n"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
@@ -78,7 +75,7 @@ class ChunkedTest {
 
     @Test
     fun testContentMixedLineEndings() = runBlocking {
-        val bodyText = "3\n123\n2\r\n45\r\n1\r6\r0\r\n"
+        val bodyText = "3\n123\n2\r\n45\r\n1\r6\r0\r\n\n"
         val ch = ByteReadChannel(bodyText.toByteArray())
         val parsed = ByteChannel()
 
@@ -100,8 +97,8 @@ class ChunkedTest {
         }
 
         yield()
-        val encodedText = encoded.readAll().inputStream().reader().readText()
-        assertEquals("0\r\n", encodedText)
+        val encodedText = encoded.readRemaining().inputStream().reader().readText()
+        assertEquals("0\r\n\r\n", encodedText)
     }
 
     @Test
@@ -126,8 +123,8 @@ class ChunkedTest {
         ch.close()
         yield()
 
-        val encodedText = encoded.readAll().inputStream().reader().readText()
-        assertEquals("3\r\n123\r\n2\r\n45\r\n1\r\n6\r\n0\r\n", encodedText)
+        val encodedText = encoded.readRemaining().inputStream().reader().readText()
+        assertEquals("3\r\n123\r\n2\r\n45\r\n1\r\n6\r\n0\r\n\r\n", encodedText)
     }
 
     @Test

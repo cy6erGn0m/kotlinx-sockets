@@ -9,7 +9,7 @@ import java.io.*
 private const val MAX_CHUNK_SIZE_LENGTH = 128
 private const val CHUNK_BUFFER_POOL_SIZE = 2048
 
-private val ChunkSizeBufferPool: ObjectPool<StringBuilder> = object: ObjectPoolImpl<StringBuilder>(CHUNK_BUFFER_POOL_SIZE) {
+private val ChunkSizeBufferPool: ObjectPool<StringBuilder> = object : ObjectPoolImpl<StringBuilder>(CHUNK_BUFFER_POOL_SIZE) {
     override fun produceInstance(): StringBuilder = StringBuilder(MAX_CHUNK_SIZE_LENGTH)
     override fun clearInstance(instance: StringBuilder) = instance.delete(0, instance.length)
 }
@@ -34,18 +34,24 @@ suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
                 throw EOFException("Invalid chunk size: empty")
             }
 
-            if (chunkSizeBuffer.length == 1 && chunkSizeBuffer[0] == '0') break
-            val chunkSize = chunkSizeBuffer.parseHexLong()
-            input.copyTo(out, chunkSize)
-            out.flush()
+            val chunkSize =
+                    if (chunkSizeBuffer.length == 1 && chunkSizeBuffer[0] == '0') 0
+                    else chunkSizeBuffer.parseHexLong()
+
+            if (chunkSize > 0) {
+                input.copyTo(out, chunkSize)
+                out.flush()
+            }
 
             chunkSizeBuffer.clear()
             if (!input.readUTF8LineTo(chunkSizeBuffer, 2)) {
-                throw EOFException("Invalid chunk: content block ended unexpectedly")
+                throw EOFException("Invalid chunk: content block of size $chunkSize ended unexpectedly")
             }
             if (chunkSizeBuffer.isNotEmpty()) {
                 throw EOFException("Invalid chunk: content block should end with CR+LF")
             }
+
+            if (chunkSize == 0L) break
         }
     } catch (t: Throwable) {
         out.close(t)
@@ -64,6 +70,8 @@ suspend fun encodeChunked(output: ByteWriteChannel): ByteWriteChannel {
         } catch (t: Throwable) {
             output.close(t)
             raw.close(t)
+        } finally {
+            output.close()
         }
     }
 
@@ -71,7 +79,7 @@ suspend fun encodeChunked(output: ByteWriteChannel): ByteWriteChannel {
 }
 
 private val CrLf = "\r\n".toByteArray()
-private val LastChunkBytes = "0\r\n".toByteArray()
+private val LastChunkBytes = "0\r\n\r\n".toByteArray()
 suspend fun encodeChunked(input: ByteReadChannel, output: ByteWriteChannel) {
     val chunkSizeBuffer = ChunkSizeBufferPool.borrow()
     val buffer = DefaultByteBufferPool.borrow()
