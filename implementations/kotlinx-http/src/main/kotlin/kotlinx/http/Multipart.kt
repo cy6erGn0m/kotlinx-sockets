@@ -88,8 +88,12 @@ suspend fun boundary(boundaryPrefixed: ByteBuffer, input: ByteReadChannel): Bool
     return result
 }
 
+fun expectMultipart(headers: HttpHeaders): Boolean {
+    return headers["Content-Type"]?.startsWith("multipart/") ?: false
+}
+
 private val headerParameterEndChars = charArrayOf(' ', ';', ',')
-fun parseMultipart(input: ByteReadChannel, headers: HttpHeaders): ReceiveChannel<MultipartEvent> {
+fun parseMultipart(input: ByteReadChannel, headers: HttpHeaders): ProducerJob<MultipartEvent> {
     val contentType = headers["Content-Type"] ?: throw IOException("Failed to parse multipart: no Content-Type header")
     if (!contentType.startsWith("multipart/")) throw IOException("Failed to parse multipart: Content-Type should be multipart/* but it is $contentType")
     val boundaryParameter = contentType.indexOf("boundary=") // TODO parse HTTP header properly instead
@@ -127,7 +131,7 @@ private val EmptyCharBuffer = CharBuffer.allocate(0)!!
 private val CrLf = ByteBuffer.wrap("\r\n".toByteArray())!!
 private val BoundaryTrailingBuffer = ByteBuffer.allocate(8192)!!
 
-fun parseMultipart(boundaryPrefixed: ByteBuffer, input: ByteReadChannel, totalLength: Long?): ReceiveChannel<MultipartEvent> {
+fun parseMultipart(boundaryPrefixed: ByteBuffer, input: ByteReadChannel, totalLength: Long?): ProducerJob<MultipartEvent> {
     return produce(ioCoroutineDispatcher) {
         val readBeforeParse = input.totalBytesRead
         val firstBoundary = boundaryPrefixed.duplicate()!!.apply {

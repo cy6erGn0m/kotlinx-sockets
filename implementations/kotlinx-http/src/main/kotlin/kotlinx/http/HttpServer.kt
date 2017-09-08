@@ -15,9 +15,7 @@ import java.nio.*
 import java.nio.ByteBuffer
 import kotlin.coroutines.experimental.*
 
-private val callDispatcher: CoroutineContext = ioCoroutineDispatcher //IOCoroutineDispatcher(8)
-
-fun httpServer(port: Int = 9096, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
+fun httpServer(port: Int = 9096, callDispatcher: CoroutineContext = ioCoroutineDispatcher, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel, multipart: ReceiveChannel<MultipartEvent>) -> Unit): Pair<Job, Deferred<ServerSocket>> {
     val deferred = CompletableDeferred<ServerSocket>()
 
     val j = launch(ioCoroutineDispatcher) {
@@ -27,7 +25,7 @@ fun httpServer(port: Int = 9096, handler: suspend (request: Request, input: Byte
                 server.openAcceptChannel().consumeEach { client ->
                     launch(ioCoroutineDispatcher) {
                         try {
-                            handleConnectionPipeline(client, client.openReadChannel(), handler)
+                            handleConnectionPipeline(client, client.openReadChannel(), callDispatcher, handler)
                         } catch (io: IOException) {
                         } finally {
                             client.close()
@@ -78,9 +76,11 @@ private suspend fun stupidHandler(socket: Socket, input: ByteReadChannel) {
     }
 }
 
-private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit) {
+private val AlwaysClosedChannel: ReceiveChannel<MultipartEvent> = RendezvousChannel<MultipartEvent>().apply { close() }
+
+private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel, callDispatcher: CoroutineContext, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel, multipart: ReceiveChannel<MultipartEvent>) -> Unit) {
     val output = socket.openWriteChannel()
-    val outputs = actor<ByteReadChannel>(ioCoroutineDispatcher, capacity = 5) {
+    val outputsActor = actor<ByteReadChannel>(ioCoroutineDispatcher, capacity = 5) {
         try {
             consumeEach { child ->
                 child.copyTo(output)
@@ -95,16 +95,20 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
 
     try {
         while (true) {
-            val request = parseRequest(input) ?: return
+            val request = parseRequest(input) ?: break
             val expectedHttpBody = expectHttpBody(request)
             val requestBody = if (expectedHttpBody) ByteChannel() else EmptyByteReadChannel
 
             val response = ByteChannel()
-            outputs.send(response)
+            outputsActor.send(response)
+
+            val mpe: ReceiveChannel<MultipartEvent> = if (expectMultipart(request.headers)) {
+                parseMultipart(input, request.headers)
+            } else AlwaysClosedChannel
 
             launch(callDispatcher) {
                 try {
-                    handler(request, requestBody, response)
+                    handler(request, requestBody, response, mpe)
                 } catch (t: Throwable) {
                     response.close(t)
                 } finally {
@@ -113,16 +117,23 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
             }
 
             if (expectedHttpBody && requestBody is ByteWriteChannel) {
-                try {
-                    parseHttpBody(request.headers, input, requestBody)
-                } catch (t: Throwable) {
-                    requestBody.close(t)
-                } finally {
-                    requestBody.close()
+                if (mpe is ProducerJob<*>) {
+                    mpe.join()
+                } else {
+                    try {
+                        parseHttpBody(request.headers, input, requestBody)
+                    } catch (t: Throwable) {
+                        requestBody.close(t)
+                    } finally {
+                        requestBody.close()
+                    }
                 }
             }
+
+            if (lastHttpRequest(request)) break
         }
     } finally {
-        outputs.close()
+        outputsActor.close()
+        outputsActor.join()
     }
 }

@@ -19,7 +19,7 @@ class IntegrationTest {
 
     @Before
     fun setUp() {
-        val (j, s) = httpServer(0) { request, input, output ->
+        val (j, s) = httpServer(0) { request, input, output, _ ->
             if (request.uri.toString() == "/do" && request.method == HttpMethod.POST) {
                 handler(request, input, output)
             } else {

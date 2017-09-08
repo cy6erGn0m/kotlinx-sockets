@@ -8,22 +8,43 @@ suspend fun parseRequest(input: ByteReadChannel): Request? {
     val range = MutableRange(0, 0)
 
     try {
-        if (!input.readUTF8LineTo(builder, 8192)) return null
-        range.end = builder.length
+        while (true) {
+            if (!input.readUTF8LineTo(builder, 8192)) return null
+            range.end = builder.length
+            if (range.start == range.end) continue
 
-        val method = parseHttpMethod(builder, range)
-        val uri = parseUri(builder, range)
-        val version = parseVersion(builder, range)
-        skipSpaces(builder, range)
+            val method = parseHttpMethod(builder, range)
+            val uri = parseUri(builder, range)
+            val version = parseVersion(builder, range)
+            skipSpaces(builder, range)
 
-        if (range.start != range.end) throw ParserException("Extra characters in request line: ${builder.substring(range.start, range.end)}")
+            if (range.start != range.end) throw ParserException("Extra characters in request line: ${builder.substring(range.start, range.end)}")
 
-        val headers = parseHeaders(input, builder, range) ?: return null
+            val headers = parseHeaders(input, builder, range) ?: return null
 
-        return Request(method, uri, version, headers, builder)
+//            dump(method.name, uri, headers)
+
+            return Request(method, uri, version, headers, builder)
+        }
     } catch (t: Throwable) {
         builder.release()
         throw t
+    }
+}
+
+@Suppress("unused")
+private fun dump(method: CharSequence, uri: CharSequence, headers: HttpHeaders) {
+    println(buildString {
+        appendln(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        appendln("REQ $method $uri")
+        headers.dumpTo("  ", this)
+        appendln("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+    })
+}
+
+private fun HttpHeaders.dumpTo(indent: String, out: Appendable) {
+    for (i in 0 until size) {
+        out.append("$indent${nameAt(i)} => ${valueAt(i)}\n")
     }
 }
 
@@ -78,6 +99,18 @@ fun expectHttpBody(request: Request): Boolean {
     if (hh["Content-Type"] != null) return true
 
     return false
+}
+
+fun lastHttpRequest(request: Request): Boolean {
+    val pre11 = !request.version.equalsLowerCase(other = "HTTP/1.1")
+    val connection = request.headers["Connection"]
+
+    return when {
+        connection == null -> pre11 // connection close by default for HTTP/1.0 and HTTP/0.x
+        connection.equalsLowerCase(other = "keep-alive") -> false
+        connection.equalsLowerCase(other = "close") -> true
+        else -> false // upgrade, etc
+    }
 }
 
 suspend fun parseHttpBody(headers: HttpHeaders, input: ByteReadChannel, out: ByteWriteChannel) {

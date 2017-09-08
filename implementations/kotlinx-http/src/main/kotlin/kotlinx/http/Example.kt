@@ -48,7 +48,7 @@ fun main0(args: Array<String>) {
 }
 
 suspend fun exampleHttpServer(deferred: CompletableDeferred<ServerSocket>) {
-    val (j, s) = httpServer { r, i, o ->
+    val (j, s) = httpServer { r, i, o, _ ->
         handleRequest(r, i, o)
     }
 
