@@ -36,7 +36,7 @@ class ActorSelectorManager : SelectorManagerSupport(), Closeable {
     }
 
     private suspend fun process(mb: ReceiveChannel<Selectable>, selector: Selector) {
-        while (true) {
+        while (!mb.isClosedForReceive) {
             processInterests(mb, selector)
 
             if (pending > 0) {
