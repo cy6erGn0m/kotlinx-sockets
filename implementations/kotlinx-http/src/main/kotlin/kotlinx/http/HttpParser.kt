@@ -60,6 +60,7 @@ suspend fun parseResponse(input: ByteReadChannel): Response? {
         val statusCode = parseStatusCode(builder, range)
         skipSpaces(builder, range)
         val statusText = builder.subSequence(range.start, range.end)
+        range.start = range.end
 
         val headers = parseHeaders(input, builder, range) ?: return null
 
@@ -135,6 +136,10 @@ suspend fun parseHttpBody(headers: HttpHeaders, input: ByteReadChannel, out: Byt
     if (contentType != null && contentType.startsWith("multipart/")) {
         // TODO: implement multipart
         return copyMultipartDummy(headers, input, out)
+    }
+
+    if (headers["Connection"]?.equalsLowerCase(other = "close") == true) {
+        input.copyTo(out)
     }
 
     out.close()
