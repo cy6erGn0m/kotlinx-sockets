@@ -1,6 +1,5 @@
 package kotlinx.http
 
-import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.impl.*
@@ -14,12 +13,10 @@ private val ChunkSizeBufferPool: ObjectPool<StringBuilder> = object : ObjectPool
     override fun clearInstance(instance: StringBuilder) = instance.delete(0, instance.length)
 }
 
-suspend fun decodeChunked(input: ByteReadChannel): ByteReadChannel {
-    val out = ByteChannel()
-    launch(ioCoroutineDispatcher, start = CoroutineStart.UNDISPATCHED) {
-        decodeChunked(input, out)
+suspend fun launchChunkedDecoder(input: ByteReadChannel): WriterJob {
+    return writer(ioCoroutineDispatcher) {
+        decodeChunked(input, channel)
     }
-    return out
 }
 
 suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
@@ -62,20 +59,10 @@ suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
     }
 }
 
-suspend fun encodeChunked(output: ByteWriteChannel): ByteWriteChannel {
-    val raw = ByteChannel()
-    launch(ioCoroutineDispatcher) {
-        try {
-            encodeChunked(raw, output)
-        } catch (t: Throwable) {
-            output.close(t)
-            raw.close(t)
-        } finally {
-            output.close()
-        }
+suspend fun launchChunkedEncoder(output: ByteWriteChannel): ReaderJob {
+    return reader(ioCoroutineDispatcher) {
+        encodeChunked(channel, output)
     }
-
-    return raw
 }
 
 private val CrLf = "\r\n".toByteArray()

@@ -15,7 +15,7 @@ import java.nio.*
 import java.nio.ByteBuffer
 import kotlin.coroutines.experimental.*
 
-fun httpServer(port: Int = 9096, callDispatcher: CoroutineContext = ioCoroutineDispatcher, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel, multipart: ReceiveChannel<MultipartEvent>) -> Unit): Pair<Job, Deferred<ServerSocket>> {
+fun httpServer(port: Int = 9096, callDispatcher: CoroutineContext = ioCoroutineDispatcher, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit): Pair<Job, Deferred<ServerSocket>> {
     val deferred = CompletableDeferred<ServerSocket>()
 
     val j = launch(ioCoroutineDispatcher) {
@@ -76,9 +76,7 @@ private suspend fun stupidHandler(socket: Socket, input: ByteReadChannel) {
     }
 }
 
-private val AlwaysClosedChannel: ReceiveChannel<MultipartEvent> = RendezvousChannel<MultipartEvent>().apply { close() }
-
-private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel, callDispatcher: CoroutineContext, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel, multipart: ReceiveChannel<MultipartEvent>) -> Unit) {
+private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChannel, callDispatcher: CoroutineContext, handler: suspend (request: Request, input: ByteReadChannel, output: ByteWriteChannel) -> Unit) {
     val output = socket.openWriteChannel()
     val outputsActor = actor<ByteReadChannel>(ioCoroutineDispatcher, capacity = 5) {
         try {
@@ -102,13 +100,9 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
             val response = ByteChannel()
             outputsActor.send(response)
 
-            val mpe: ReceiveChannel<MultipartEvent> = if (expectMultipart(request.headers)) {
-                parseMultipart(input, request.headers)
-            } else AlwaysClosedChannel
-
             launch(callDispatcher) {
                 try {
-                    handler(request, requestBody, response, mpe)
+                    handler(request, requestBody, response)
                 } catch (t: Throwable) {
                     response.close(t)
                 } finally {
@@ -117,16 +111,12 @@ private suspend fun handleConnectionPipeline(socket: Socket, input: ByteReadChan
             }
 
             if (expectedHttpBody && requestBody is ByteWriteChannel) {
-                if (mpe is ProducerJob<*>) {
-                    mpe.join()
-                } else {
-                    try {
-                        parseHttpBody(request.headers, input, requestBody)
-                    } catch (t: Throwable) {
-                        requestBody.close(t)
-                    } finally {
-                        requestBody.close()
-                    }
+                try {
+                    parseHttpBody(request.headers, input, requestBody)
+                } catch (t: Throwable) {
+                    requestBody.close(t)
+                } finally {
+                    requestBody.close()
                 }
             }
 

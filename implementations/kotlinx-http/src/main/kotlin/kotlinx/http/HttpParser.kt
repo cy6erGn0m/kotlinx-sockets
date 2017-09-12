@@ -2,6 +2,7 @@ package kotlinx.http
 
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.http.internals.*
+import java.io.*
 
 suspend fun parseRequest(input: ByteReadChannel): Request? {
     val builder = CharBufferBuilder()
@@ -127,27 +128,21 @@ suspend fun parseHttpBody(headers: HttpHeaders, input: ByteReadChannel, out: Byt
     if (transferEncoding != null) {
         if (transferEncoding.equalsLowerCase(other = "chunked")) {
             return decodeChunked(input, out)
+        } else if (transferEncoding.equalsLowerCase(other = "identity")) {
+            // do nothing special
         } else {
+            out.close(IOException("Unsupported transfer-encoding $transferEncoding"))
             // TODO unknown transfer encoding?
         }
-    }
-
-    val contentType = headers["Content-Type"]
-    if (contentType != null && contentType.startsWith("multipart/")) {
-        // TODO: implement multipart
-        return copyMultipartDummy(headers, input, out)
     }
 
     if (headers["Connection"]?.equalsLowerCase(other = "close") == true) {
         input.copyTo(out)
     }
 
-    out.close()
-}
-
-private suspend fun copyMultipartDummy(headers: HttpHeaders, input: ByteReadChannel, out: ByteWriteChannel) {
-    val length = headers["Content-Length"]?.toString()?.toLong() ?: Long.MAX_VALUE
-    input.copyTo(out, length)
+    out.close(IOException("Failed to parse request body: request body length should be specified, " +
+            "chunked transfer encoding should be used or " +
+            "keep-alive should be disabled (connection: close)"))
 }
 
 internal suspend fun parseHeaders(input: ByteReadChannel, builder: CharBufferBuilder, range: MutableRange = MutableRange(0, 0)): HttpHeaders? {

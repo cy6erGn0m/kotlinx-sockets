@@ -48,7 +48,7 @@ fun main0(args: Array<String>) {
 }
 
 suspend fun exampleHttpServer(deferred: CompletableDeferred<ServerSocket>) {
-    val (j, s) = httpServer { r, i, o, _ ->
+    val (j, s) = httpServer { r, i, o ->
         handleRequest(r, i, o)
     }
 
@@ -166,7 +166,8 @@ private suspend fun respondChunked(output: ByteWriteChannel) {
         response.release()
         output.flush()
 
-        val chunked = encodeChunked(output)
+        val encoder = launchChunkedEncoder(output)
+        val chunked = encoder.channel
 
         chunked.writeStringUtf8("Hello, my dear\n")
         chunked.flush()
@@ -176,7 +177,7 @@ private suspend fun respondChunked(output: ByteWriteChannel) {
         delay(100)
         chunked.close()
 
-        delay(1000)
+        encoder.join()
     } finally {
         response.release()
     }

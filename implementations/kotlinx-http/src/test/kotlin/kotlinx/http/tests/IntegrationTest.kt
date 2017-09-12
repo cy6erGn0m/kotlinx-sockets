@@ -3,7 +3,6 @@ package kotlinx.http.tests
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.http.*
-import kotlinx.sockets.*
 import kotlinx.sockets.ServerSocket
 import org.junit.*
 import java.net.*
@@ -19,7 +18,7 @@ class IntegrationTest {
 
     @Before
     fun setUp() {
-        val (j, s) = httpServer(0) { request, input, output, _ ->
+        val (j, s) = httpServer(0) { request, input, output ->
             if (request.uri.toString() == "/do" && request.method == HttpMethod.POST) {
                 handler(request, input, output)
             } else {
@@ -58,7 +57,7 @@ class IntegrationTest {
     fun testChunkedRequestResponse() {
         val url = URL("http://localhost:$port/do")
 
-        handler = { r, i, o ->
+        handler = { r, input, o ->
             val rr = RequestResponseBuilder()
             try {
                 rr.responseLine(r.version, 200, "OK")
@@ -71,21 +70,9 @@ class IntegrationTest {
                 rr.release()
             }
 
-            val request = i //decodeChunked(i)
-            val response = ByteChannel()
-            val chunkerJob = launch(ioCoroutineDispatcher) {
-                try {
-                    encodeChunked(response, o)
-                } catch (t: Throwable) {
-                    o.close(t)
-                    throw t
-                } finally {
-                    o.close()
-                }
-            }
-
-            request.copyAndClose(response)
-            chunkerJob.join()
+            val chunked = launchChunkedEncoder(o)
+            input.copyAndClose(chunked.channel)
+            chunked.join()
         }
 
         val connection = url.openConnection(Proxy.NO_PROXY) as HttpURLConnection
