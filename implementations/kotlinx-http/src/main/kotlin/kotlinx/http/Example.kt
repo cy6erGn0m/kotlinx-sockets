@@ -166,7 +166,7 @@ private suspend fun respondChunked(output: ByteWriteChannel) {
         response.release()
         output.flush()
 
-        val encoder = launchChunkedEncoder(output)
+        val encoder = encodeChunked(output)
         val chunked = encoder.channel
 
         chunked.writeStringUtf8("Hello, my dear\n")

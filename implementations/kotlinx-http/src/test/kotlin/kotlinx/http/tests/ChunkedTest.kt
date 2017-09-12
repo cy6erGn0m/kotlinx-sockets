@@ -90,7 +90,7 @@ class ChunkedTest {
 
         launch(coroutineContext) {
             try {
-                encodeChunked(EmptyByteReadChannel, encoded)
+                encodeChunked(encoded, EmptyByteReadChannel)
             } finally {
                 encoded.close()
             }
@@ -108,7 +108,7 @@ class ChunkedTest {
 
         launch(coroutineContext) {
             try {
-                encodeChunked(ch, encoded)
+                encodeChunked(encoded, ch)
             } finally {
                 encoded.close()
             }
@@ -149,7 +149,7 @@ class ChunkedTest {
 
         launch(coroutineContext) {
             try {
-                encodeChunked(content, encoded)
+                encodeChunked(encoded, content)
             } finally {
                 encoded.close()
             }

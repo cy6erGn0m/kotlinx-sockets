@@ -172,7 +172,7 @@ class MultipartTest {
 
         val ch = ByteReadChannel(body.toByteArray())
         val request = parseRequest(ch)!!
-        val decoded = launchChunkedDecoder(ch)
+        val decoded = decodeChunked(ch)
         val mp = parseMultipart(decoded.channel, request.headers)
 
         val allEvents = ArrayList<MultipartEvent>()

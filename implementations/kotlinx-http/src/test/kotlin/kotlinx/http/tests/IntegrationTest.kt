@@ -70,7 +70,7 @@ class IntegrationTest {
                 rr.release()
             }
 
-            val chunked = launchChunkedEncoder(o)
+            val chunked = encodeChunked(o)
             input.copyAndClose(chunked.channel)
             chunked.join()
         }

@@ -4,17 +4,19 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.impl.*
 import java.io.*
+import kotlin.coroutines.experimental.*
 
 private const val MAX_CHUNK_SIZE_LENGTH = 128
 private const val CHUNK_BUFFER_POOL_SIZE = 2048
 
 private val ChunkSizeBufferPool: ObjectPool<StringBuilder> = object : ObjectPoolImpl<StringBuilder>(CHUNK_BUFFER_POOL_SIZE) {
     override fun produceInstance(): StringBuilder = StringBuilder(MAX_CHUNK_SIZE_LENGTH)
-    override fun clearInstance(instance: StringBuilder) = instance.delete(0, instance.length)
+    override fun clearInstance(instance: StringBuilder) = instance.apply { clear() }
 }
 
-suspend fun launchChunkedDecoder(input: ByteReadChannel): WriterJob {
-    return writer(ioCoroutineDispatcher) {
+typealias DecoderJob = WriterJob
+suspend fun decodeChunked(input: ByteReadChannel, coroutineContext: CoroutineContext = ioCoroutineDispatcher): DecoderJob {
+    return writer(coroutineContext) {
         decodeChunked(input, channel)
     }
 }
@@ -59,15 +61,14 @@ suspend fun decodeChunked(input: ByteReadChannel, out: ByteWriteChannel) {
     }
 }
 
-suspend fun launchChunkedEncoder(output: ByteWriteChannel): ReaderJob {
-    return reader(ioCoroutineDispatcher) {
-        encodeChunked(channel, output)
+typealias EncoderJob = ReaderJob
+suspend fun encodeChunked(output: ByteWriteChannel, coroutineContext: CoroutineContext = ioCoroutineDispatcher): EncoderJob {
+    return reader(coroutineContext) {
+        encodeChunked(output, channel)
     }
 }
 
-private val CrLf = "\r\n".toByteArray()
-private val LastChunkBytes = "0\r\n\r\n".toByteArray()
-suspend fun encodeChunked(input: ByteReadChannel, output: ByteWriteChannel) {
+suspend fun encodeChunked(output: ByteWriteChannel, input: ByteReadChannel) {
     val chunkSizeBuffer = ChunkSizeBufferPool.borrow()
     val buffer = DefaultByteBufferPool.borrow()
 
@@ -99,6 +100,9 @@ suspend fun encodeChunked(input: ByteReadChannel, output: ByteWriteChannel) {
         ChunkSizeBufferPool.recycle(chunkSizeBuffer)
     }
 }
+
+private val CrLf = "\r\n".toByteArray()
+private val LastChunkBytes = "0\r\n\r\n".toByteArray()
 
 private fun StringBuilder.clear() {
     delete(0, length)
