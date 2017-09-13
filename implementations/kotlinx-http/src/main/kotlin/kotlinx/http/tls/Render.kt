@@ -36,7 +36,7 @@ fun ByteWritePacket.writeTLSClientHello(hello: TLSHandshakeHeader) {
     }
 
     // compression is always null
-    writeShort(1)
+    writeByte(1)
     writeByte(0)
 
     // extensions are always null
