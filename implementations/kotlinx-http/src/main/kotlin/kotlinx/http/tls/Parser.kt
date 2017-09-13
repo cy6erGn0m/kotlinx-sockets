@@ -2,7 +2,9 @@ package kotlinx.http.tls
 
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
+import sun.security.x509.*
 import java.io.*
+import java.security.cert.*
 
 class TLSHeader {
     var type: RecordType = RecordType.Handshake
@@ -41,6 +43,12 @@ suspend fun ByteReadChannel.readTLSHandshake(header: TLSHeader, handshake: TLSHa
     handshake.length = v and 0xffffff
 }
 
+fun ByteReadPacket.readTLSHandshake(handshake: TLSHandshakeHeader) {
+    val v = readInt()
+    handshake.type = TLSHandshakeType.byCode(v ushr 24)
+    handshake.length = v and 0xffffff
+}
+
 suspend fun ByteReadChannel.readTLSClientHello(header: TLSHeader, handshake: TLSHandshakeHeader) {
     readTLSHandshake(header, handshake)
     val p = readPacket(handshake.length)
@@ -65,7 +73,7 @@ suspend fun ByteReadChannel.readTLSClientHello(header: TLSHeader, handshake: TLS
         suites[i] = p.readShort()
     }
 
-    p.skipExact(3) // skip compression
+    p.skipExact(2) // skip compression
 
     if (p.remaining > 0) {
         val extensionsLength = p.readUShort()
@@ -79,7 +87,56 @@ suspend fun ByteReadChannel.readTLSClientHello(header: TLSHeader, handshake: TLS
     }
 }
 
+fun ByteReadPacket.readTLSServerHello(handshake: TLSHandshakeHeader) {
+    if (handshake.type !== TLSHandshakeType.ServerHello) throw TLSException("Expected TLS handshake ServerHello but got ${handshake.type}")
 
+    handshake.version = readTLSVersion()
+    readFully(handshake.random)
+    val sessionIdLength = readByte().toInt() and 0xff
+
+    if (sessionIdLength > 32) throw TLSException("sessionId length limit of 32 bytes exceeded: $sessionIdLength specified")
+    handshake.sessionIdLength = sessionIdLength
+    readFully(handshake.sessionId, 0, sessionIdLength)
+
+    handshake.suitesCount = 1
+    handshake.suites[0] = readShort()
+
+    val compressionMethod = readUByte()
+    if (compressionMethod.toInt() != 0) throw TLSException("Unsupported TLS compression method $compressionMethod (only null 0 compression method is supported)")
+
+    if (remaining > 0) {
+        val extensionsLength = readUShort()
+        skipExact(extensionsLength)
+
+        // TODO TLS extensions
+    }
+
+    if (remaining > 0) {
+        throw TLSException("TLS handshake ServerHello extra bytes")
+    }
+}
+
+fun ByteReadPacket.readTLSCertificate(handshake: TLSHandshakeHeader): List<Certificate> {
+    if (handshake.type !== TLSHandshakeType.Certificate) throw TLSException("Expected TLS handshake Certificate but got ${handshake.type}")
+
+    val certificatesChainLength = readTripleByteLength()
+    var certificateBase = 0
+    val result = ArrayList<Certificate>()
+
+    while (certificateBase < certificatesChainLength) {
+        val certificateLength = readTripleByteLength()
+        if (certificateLength > (certificatesChainLength - certificateBase)) throw TLSException("Certificate length is too big")
+        if (certificateLength > remaining) throw TLSException("Certificate length is too big")
+
+        val certificate = ByteArray(certificateLength)
+        readFully(certificate)
+        certificateBase += certificateLength + 3
+
+        result.add(X509CertImpl(certificate))
+    }
+
+    return result
+}
 
 private const val MAX_TLS_FRAME_SIZE = 0x4800
 
@@ -90,3 +147,5 @@ private suspend fun ByteReadChannel.readTLSVersion() =
 
 private fun ByteReadPacket.readTLSVersion() =
         TLSVersion.byCode(readShort().toInt() and 0xffff)
+
+private fun ByteReadPacket.readTripleByteLength(): Int = (readUByte().toInt() shl 16) or readUShort()
