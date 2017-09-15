@@ -14,7 +14,7 @@ fun main(args: Array<String>) {
 
     val host = url.host
     val port = url.port.takeIf { it > 0 }?.toInt() ?: 443
-    val pathAndQuery = url.path + (url.query?.let { "?" + it } ?: "").trim().let { if (it.startsWith("/")) it else "/$it" }
+    val pathAndQuery = (url.path + (url.query?.let { "?" + it } ?: "")).trim().let { if (it.startsWith("/")) it else "/$it" }
 
     val remoteAddress = InetSocketAddress(host, port)
 
@@ -29,7 +29,7 @@ fun main(args: Array<String>) {
                     session.run()
                 }
 
-                session.appDataOutput.writeStringUtf8("GET $pathAndQuery HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n")
+                session.appDataOutput.writeStringUtf8("GET $pathAndQuery HTTP/1.1\r\nHost: $host:$port\r\nAccept: */*\r\nUser-Agent: kotlinx-tls-client\r\nConnection: close\r\n\r\n")
                 session.appDataOutput.flush()
 
                 val bb = ByteBuffer.allocate(8192)
