@@ -35,9 +35,13 @@ class PremasterToMasterTest {
         val myMaterial = keyMaterial(master, serverRandom + clientRandom, TLS_RSA_WITH_AES_128_GCM_SHA256.keyStrengthInBytes, TLS_RSA_WITH_AES_128_GCM_SHA256.macStrengthInBytes, TLS_RSA_WITH_AES_128_GCM_SHA256.fixedIvLength)
         val myClientKey = myMaterial.clientKey(TLS_RSA_WITH_AES_128_GCM_SHA256)
         val myClientIv = myMaterial.clientIV(TLS_RSA_WITH_AES_128_GCM_SHA256)
+        val myServerKey = myMaterial.serverKey(TLS_RSA_WITH_AES_128_GCM_SHA256)
+        val myServerIv = myMaterial.serverIV(TLS_RSA_WITH_AES_128_GCM_SHA256)
 
         assertTrue { myClientKey.encoded.contentEquals(material.clientCipherKey.encoded) }
         assertTrue { myClientIv.contentEquals(material.clientIv.iv) }
+        assertTrue { myServerKey.encoded.contentEquals(material.serverCipherKey.encoded) }
+        assertTrue { myServerIv.contentEquals(material.serverIv.iv) }
     }
 
     private fun decodeHexDump(dump: String): ByteArray {

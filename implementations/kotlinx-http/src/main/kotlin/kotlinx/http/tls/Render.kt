@@ -134,6 +134,12 @@ internal val TLS_RSA_WITH_AES_128_GCM_SHA256 = CipherSuite(0x009c, "TLS_RSA_WITH
 private val cipherSuites = mapOf(0x009c.toShort() to TLS_RSA_WITH_AES_128_GCM_SHA256)
 
 class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel) {
+    public val appDataInput: ByteReadChannel get() = _appDataInput
+    public val appDataOutput: ByteWriteChannel get() = _appDataOutput
+
+    private val _appDataInput = ByteChannel()
+    private val _appDataOutput = ByteChannel()
+
     private val header = TLSHeader()
     private val handshakeHeader = TLSHandshakeHeader()
     private val packetForHashing = WritePacket()
@@ -147,6 +153,8 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
     private var preSecret = EmptyByteArray
     private var masterSecret: SecretKey? = null
 
+    private var keyMaterial: ByteArray = EmptyByteArray
+
     private val random = SecureRandom.getInstanceStrong()
 
     suspend fun run() {
@@ -157,9 +165,9 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
         initClientRandom()
         sendClientHello()
 
-        while (true) {
-            input.readTLSHeader(header)
-            val packet = input.readPacket(header.length)
+        loop@while (true) {
+            if (!readTLSHeader()) throw TLSException("Handshake failed: premature end of stream")
+            val packet = readPacket()
 
             when (header.type) {
                 RecordType.Handshake -> {
@@ -176,10 +184,104 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
 
                     handshake(hs)
                 }
+                RecordType.ChangeCipherSpec -> {
+                    if (header.length != 1) throw TLSException("ChangeCipherSpec should contain just one byte but there are ${header.length}")
+                    val flag = packet.readByte()
+                    changeCipherSpec(flag)
+                    break@loop
+                }
                 else -> {
                     throw TLSException("Unsupported TLS record type ${header.type}")
                 }
             }
+        }
+
+        launch(CommonPool) {
+            try {
+                appDataOutputLoop()
+            } catch (t: Throwable) {
+                _appDataOutput.close(t)
+            } finally {
+                _appDataOutput.close()
+            }
+        }
+
+        try {
+            appDataInputLoop()
+        } catch (t: Throwable) {
+            _appDataInput.close(t)
+        } finally {
+            _appDataInput.close()
+        }
+    }
+
+    private suspend fun appDataInputLoop() {
+        var seq = 1L
+        while (true) {
+            if (!readTLSHeader()) break
+            val encrypted = readPacket()
+
+            when (header.type) {
+                RecordType.ApplicationData -> {
+                    val recordIv = encrypted.readLong()
+                    val cipher = decryptCipher(cipherSuite!!, keyMaterial, header.type, header.length, recordIv, seq)
+                    val packet = encrypted.decrypted(cipher)
+
+                    _appDataInput.writePacket(packet)
+                    _appDataInput.flush()
+                }
+                RecordType.Alert -> {
+                    val recordIv = encrypted.readLong()
+                    val cipher = decryptCipher(cipherSuite!!, keyMaterial, header.type, header.length, recordIv, seq)
+                    val packet = encrypted.decrypted(cipher)
+
+                    val fatal = packet.readByte() == 2.toByte()
+                    val code = packet.readByte()
+
+                    if (fatal) {
+                        _appDataInput.close(TLSException("Fatal: server alerted with description code $code"))
+                    } else {
+                        println("Got TLS warning $code")
+                        _appDataInput.close()
+                    }
+                    return
+                }
+                else -> throw TLSException("Unexpected record ${header.type} (${header.length} bytes)")
+            }
+
+            seq ++
+        }
+    }
+
+    private suspend fun appDataOutputLoop() {
+        var seq = 1L
+        val buffer = DefaultByteBufferPool.borrow()
+
+        try {
+            while (true) {
+                buffer.clear()
+                val rc = _appDataOutput.readAvailable(buffer)
+                if (rc == -1) break
+
+                buffer.flip()
+                val cipher = encryptCipher(cipherSuite!!, keyMaterial, RecordType.ApplicationData, rc, seq, seq)
+                val packet = buildPacket {
+                    writeFully(buffer)
+                }
+                val encrypted = packet.encrypted(cipher, seq)
+                output.writePacket {
+                    header.type = RecordType.ApplicationData
+                    header.version = TLSVersion.TLS12
+                    header.length = encrypted.remaining
+                    writeTLSHeader(header)
+                }
+                output.writePacket(encrypted)
+                output.flush()
+
+                seq++
+            }
+        } finally {
+            DefaultByteBufferPool.recycle(buffer)
         }
     }
 
@@ -191,6 +293,32 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
             this[2] = (unixTime shr 8).toByte()
             this[3] = (unixTime shr 0).toByte()
         }
+    }
+
+    private suspend fun readTLSHeader(): Boolean {
+        return input.readTLSHeader(header)
+    }
+
+    private suspend fun readPacket(): ByteReadPacket {
+        return input.readPacket(header.length)
+    }
+
+    private suspend fun changeCipherSpec(flag: Byte) {
+        if (!readTLSHeader()) throw TLSException("Handshake failed: premature end of stream")
+        if (header.type != RecordType.Handshake) {
+            // TODO alert ?
+            throw TLSException("Unexpected record of type ${header.type} (${header.length} bytes)")
+        }
+
+        val encryptedPacket = readPacket()
+        val recordIv = encryptedPacket.readLong()
+        val cipher = decryptCipher(cipherSuite!!, keyMaterial, RecordType.Handshake, header.length, recordIv, 0)
+        val decrypted = encryptedPacket.decrypted(cipher)
+
+        decrypted.readTLSHandshake(handshakeHeader)
+        if (handshakeHeader.type != TLSHandshakeType.Finished) throw TLSException("TLS handshake failed: expected Finihsed record after ChangeCipherSpec but got ${handshakeHeader.type}")
+
+        // TODO verify data!!!
     }
 
     private suspend fun handshake(packet: ByteReadPacket) {
@@ -224,7 +352,8 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
                 }
 
                 val hash = doHash()
-                masterSecret = masterSecret(SecretKeySpec(preSecret, cipherSuite!!.macName), clientRandom, serverRandom)
+                val suite = cipherSuite!!
+                masterSecret = masterSecret(SecretKeySpec(preSecret, suite.macName), clientRandom, serverRandom)
                 preSecret.fill(0)
                 preSecret = EmptyByteArray
 
@@ -236,9 +365,10 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
                     writePacket(finishedBody)
                 }
 
-                val cipher = encryptCipher(cipherSuite!!, masterSecret!!, serverRandom + clientRandom)
+                keyMaterial = keyMaterial(masterSecret!!, serverRandom + clientRandom, suite.keyStrengthInBytes, suite.macStrengthInBytes, suite.fixedIvLength)
+                val cipher = encryptCipher(suite, keyMaterial, RecordType.Handshake, finished.remaining, 0, 0)
 
-                val finishedEncrypted = finished.encrypted(cipher)
+                val finishedEncrypted = finished.encrypted(cipher, 0)
 
                 output.writePacket {
                     header.type = RecordType.Handshake
@@ -325,7 +455,21 @@ fun main(args: Array<String>) {
                 val output = socket.openWriteChannel()
 
                 val session = TLSClientSession(input, output)
-                session.run()
+                launch(CommonPool) {
+                    session.run()
+                }
+
+                session.appDataOutput.writeStringUtf8("GET / HTTP/1.1\r\nHost: localhost:44330\r\nConnection: keep-alive\r\n\r\n")
+                session.appDataOutput.flush()
+
+                val bb = ByteBuffer.allocate(8192)
+                while (true) {
+                    val rc = session.appDataInput.readAvailable(bb)
+                    if (rc == -1) break
+                    bb.flip()
+                    System.out.write(bb.array(), bb.arrayOffset() + bb.position(), rc)
+                    System.out.flush()
+                }
             }
         }
     }
@@ -337,14 +481,18 @@ private val KEY_EXPANSION_LABEL = "key expansion".toByteArray()
 
 // Cipher Suite: TLS_RSA_WITH_AES_256_GCM_SHA384 (0x009d)
 // TLS_RSA_WITH_AES_128_GCM_SHA256 (0x009c)
-private fun encryptCipher(suite: CipherSuite, masterSecret: SecretKey, seed: ByteArray): Cipher {
+private fun encryptCipher(suite: CipherSuite, keyMaterial: ByteArray, recordType: RecordType, recordLength: Int, recordIv: Long, seq: Long): Cipher {
     val cipher = Cipher.getInstance(suite.jdkCipherName)
 
-    val m = keyMaterial(masterSecret, seed, suite.keyStrengthInBytes, suite.macStrengthInBytes, suite.fixedIvLength)
-
-    val key = m.clientKey(suite)
-    val fixedIv = m.clientIV(suite)
+    val key = keyMaterial.clientKey(suite)
+    val fixedIv = keyMaterial.clientIV(suite)
     val iv = fixedIv.copyOf(suite.ivLength)
+
+    var s = recordIv
+    for (idx in suite.ivLength - 1 downTo suite.fixedIvLength) {
+        iv[idx] = (s and 0xff).toByte()
+        s = s ushr 8
+    }
 
     // TODO non-gcm ciphers
     val gcmSpec = GCMParameterSpec(suite.cipherTagSizeInBytes * 8, iv)
@@ -352,19 +500,66 @@ private fun encryptCipher(suite: CipherSuite, masterSecret: SecretKey, seed: Byt
     cipher.init(Cipher.ENCRYPT_MODE, key, gcmSpec)
 
     val aad = ByteArray(13)
-    aad[9] = 3
+    s = seq
+    for (idx in 7 downTo 0) {
+        aad[idx] = (s and 0xff).toByte()
+        s = s ushr 8
+    }
+    aad[9] = 3 // TLS 1.2
     aad[10] = 3
 
-    aad[8] = RecordType.Handshake.code.toByte()
-    aad[12] = 16 // TODO record size
+    aad[8] = recordType.code.toByte()
+    aad[11] = (recordLength shr 8).toByte()
+    aad[12] = (recordLength and 0xff).toByte()
 
     cipher.updateAAD(aad)
 
     return cipher
 }
 
+private fun decryptCipher(suite: CipherSuite, keyMaterial: ByteArray, recordType: RecordType, recordLength: Int, recordIv: Long, seq: Long): Cipher {
+    val cipher = Cipher.getInstance(suite.jdkCipherName)
+
+    val key = keyMaterial.serverKey(suite)
+    val fixedIv = keyMaterial.serverIV(suite)
+    val iv = fixedIv.copyOf(suite.ivLength)
+
+    var s = recordIv
+    for (idx in suite.ivLength - 1 downTo suite.fixedIvLength) {
+        iv[idx] = (s and 0xff).toByte()
+        s = s ushr 8
+    }
+
+    // TODO non-gcm ciphers
+    val gcmSpec = GCMParameterSpec(suite.cipherTagSizeInBytes * 8, iv)
+
+    cipher.init(Cipher.DECRYPT_MODE, key, gcmSpec)
+
+    val contentSize = recordLength - (suite.ivLength - suite.fixedIvLength) - suite.cipherTagSizeInBytes
+    val aad = ByteArray(13)
+    s = seq
+    for (idx in 7 downTo 0) {
+        aad[idx] = (s and 0xff).toByte()
+        s = s ushr 8
+    }
+
+    aad[9] = 3 // TLS 1.2
+    aad[10] = 3
+
+    aad[8] = recordType.code.toByte()
+    aad[11] = (contentSize shr 8).toByte()
+    aad[12] = (contentSize and 0xff).toByte()
+
+    cipher.updateAAD(aad)
+
+    return cipher
+}
+
+
 internal fun ByteArray.clientKey(suite: CipherSuite) = SecretKeySpec(this, 2 * suite.macStrengthInBytes, suite.keyStrengthInBytes, suite.jdkCipherName.substringBefore("/"))
+internal fun ByteArray.serverKey(suite: CipherSuite) = SecretKeySpec(this, 2 * suite.macStrengthInBytes + suite.keyStrengthInBytes, suite.keyStrengthInBytes, suite.jdkCipherName.substringBefore("/"))
 internal fun ByteArray.clientIV(suite: CipherSuite) = this.copyOfRange(2 * suite.macStrengthInBytes + 2 * suite.keyStrengthInBytes, 2 * suite.macStrengthInBytes + 2 * suite.keyStrengthInBytes + suite.fixedIvLength)
+internal fun ByteArray.serverIV(suite: CipherSuite) = this.copyOfRange(2 * suite.macStrengthInBytes + 2 * suite.keyStrengthInBytes + suite.fixedIvLength, 2 * suite.macStrengthInBytes + 2 * suite.keyStrengthInBytes + 2 * suite.fixedIvLength)
 
 internal fun keyMaterial(masterSecret: SecretKey, seed: ByteArray, keySize: Int, macSize: Int, ivSize: Int): ByteArray {
     val materialSize = 2 * macSize + 2 * keySize + 2 * ivSize
@@ -467,14 +662,14 @@ private fun ByteReadPacket.duplicate(): Pair<ByteReadPacket, ByteReadPacket> {
     }
 }
 
-private fun ByteReadPacket.encrypted(cipher: Cipher): ByteReadPacket {
+private fun ByteReadPacket.encrypted(cipher: Cipher, recordIv: Long): ByteReadPacket {
     val buffer = DefaultByteBufferPool.borrow()
     val encrypted = DefaultByteBufferPool.borrow()
     try {
         return buildPacket {
             buffer.clear()
 
-            writeLong(0)
+            writeLong(recordIv)
 
             while (true) {
                 val rc = if (buffer.hasRemaining()) readAvailable(buffer) else 0
@@ -493,5 +688,32 @@ private fun ByteReadPacket.encrypted(cipher: Cipher): ByteReadPacket {
     } finally {
         DefaultByteBufferPool.recycle(buffer)
         DefaultByteBufferPool.recycle(encrypted)
+    }
+}
+
+private fun ByteReadPacket.decrypted(cipher: Cipher): ByteReadPacket {
+    val buffer = DefaultByteBufferPool.borrow()
+    val decrypted = DefaultByteBufferPool.borrow()
+    try {
+        return buildPacket {
+            buffer.clear()
+
+            while (true) {
+                val rc = if (buffer.hasRemaining()) readAvailable(buffer) else 0
+                if (rc == -1) break
+                buffer.flip()
+
+                decrypted.clear()
+                cipher.update(buffer, decrypted)
+                decrypted.flip()
+                writeFully(decrypted)
+                buffer.compact()
+            }
+
+            writeFully(cipher.doFinal()) // TODO use decrypted buffer instead
+        }
+    } finally {
+        DefaultByteBufferPool.recycle(buffer)
+        DefaultByteBufferPool.recycle(decrypted)
     }
 }

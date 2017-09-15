@@ -1,5 +1,6 @@
 package kotlinx.http.tls
 
+import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
 import sun.security.x509.*
@@ -27,12 +28,14 @@ class TLSHandshakeHeader {
     var sessionId = ByteArray(32)
 }
 
-suspend fun ByteReadChannel.readTLSHeader(header: TLSHeader) {
-    header.type = RecordType.byCode(readByte().toInt() and 0xff)
+suspend fun ByteReadChannel.readTLSHeader(header: TLSHeader): Boolean {
+    val typeCode = try { readByte().toInt() and 0xff } catch (t: ClosedReceiveChannelException) { return false }
+    header.type = RecordType.byCode(typeCode)
     header.version = readTLSVersion()
     header.length = readShort().toInt() and 0xffff
 
     if (header.length > MAX_TLS_FRAME_SIZE) throw TLSException("Illegal TLS frame size: ${header.length}")
+    return true
 }
 
 suspend fun ByteReadChannel.readTLSHandshake(header: TLSHeader, handshake: TLSHandshakeHeader) {
