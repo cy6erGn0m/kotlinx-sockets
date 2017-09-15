@@ -1,6 +1,5 @@
 package kotlinx.http.tls
 
-import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
@@ -9,13 +8,11 @@ import java.security.cert.*
 import javax.crypto.*
 import javax.crypto.spec.*
 import javax.net.ssl.*
+import kotlin.coroutines.experimental.*
 
-class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel, val trustManager: X509TrustManager? = null, val serverName: String? = null) {
-    public val appDataInput: ByteReadChannel get() = _appDataInput
-    public val appDataOutput: ByteWriteChannel get() = _appDataOutput
-
-    private val _appDataInput = ByteChannel()
-    private val _appDataOutput = ByteChannel()
+internal class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel, val trustManager: X509TrustManager? = null, val serverName: String? = null, val coroutineContext: CoroutineContext) : AReadable, AWritable {
+    private var readerJob: ReaderJob? = null
+    private var writerJob: WriterJob? = null
 
     private val header = TLSHeader()
     private val handshakeHeader = TLSHandshakeHeader()
@@ -34,18 +31,14 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
 
     private val random = SecureRandom.getInstanceStrong()
 
-    suspend fun run() {
+    suspend fun negotiate() {
         try {
             tlsHandshakeAndNegotiation()
         } catch (t: Throwable) {
-            _appDataOutput.close(t)
-            _appDataInput.close(t)
+            readerJob?.cancel(t)
+            writerJob?.cancel(t)
             output.close(t)
             throw t
-        } finally {
-            _appDataInput.close()
-            _appDataOutput.close()
-            output.close()
         }
     }
 
@@ -83,27 +76,23 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
                 }
             }
         }
-
-        launch(CommonPool) {
-            try {
-                appDataOutputLoop()
-            } catch (t: Throwable) {
-                _appDataOutput.close(t)
-            } finally {
-                _appDataOutput.close()
-            }
-        }
-
-        try {
-            appDataInputLoop()
-        } catch (t: Throwable) {
-            _appDataInput.close(t)
-        } finally {
-            _appDataInput.close()
-        }
     }
 
-    private suspend fun appDataInputLoop() {
+    override fun attachForReading(channel: ByteChannel): WriterJob {
+        writerJob = writer(coroutineContext, channel) {
+            appDataInputLoop(this.channel)
+        }
+        return writerJob!!
+    }
+
+    override fun attachForWriting(channel: ByteChannel): ReaderJob {
+        readerJob = reader(coroutineContext, channel) {
+            appDataOutputLoop(this.channel)
+        }
+        return readerJob!!
+    }
+
+    private suspend fun appDataInputLoop(pipe: ByteWriteChannel) {
         var seq = 1L
         while (true) {
             if (!readTLSHeader()) break
@@ -115,8 +104,8 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
                     val cipher = decryptCipher(cipherSuite!!, keyMaterial, header.type, header.length, recordIv, seq)
                     val packet = encrypted.decrypted(cipher)
 
-                    _appDataInput.writePacket(packet)
-                    _appDataInput.flush()
+                    pipe.writePacket(packet)
+                    pipe.flush()
                 }
                 TLSRecordType.Alert -> {
                     val recordIv = encrypted.readLong()
@@ -127,12 +116,12 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
                     val code = packet.readByte()
 
                     if (fatal) {
-                        _appDataInput.close(TLSException("Fatal: server alerted with description code $code"))
+                        pipe.close(TLSException("Fatal: server alerted with description code $code"))
                     } else {
                         if (code != 0.toByte()) {
                             println("Got TLS warning $code")
                         }
-                        _appDataInput.close()
+                        pipe.close()
                     }
                     return
                 }
@@ -143,14 +132,14 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
         }
     }
 
-    private suspend fun appDataOutputLoop() {
+    private suspend fun appDataOutputLoop(pipe: ByteReadChannel) {
         var seq = 1L
         val buffer = DefaultByteBufferPool.borrow()
 
         try {
             while (true) {
                 buffer.clear()
-                val rc = _appDataOutput.readAvailable(buffer)
+                val rc = pipe.readAvailable(buffer)
                 if (rc == -1) break
 
                 buffer.flip()

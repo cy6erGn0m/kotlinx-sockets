@@ -48,14 +48,9 @@ fun main(args: Array<String>) {
 
     runBlocking {
         ActorSelectorManager().use { selector ->
-            aSocket(selector).tcp().connect(remoteAddress).use { socket ->
+            aSocket(selector).tcp().connect(remoteAddress).tls(customManager, serverName).use { socket ->
                 val input = socket.openReadChannel()
                 val output = socket.openWriteChannel()
-
-                val session = TLSClientSession(input, output, customManager, serverName)
-                launch(CommonPool) {
-                    session.run()
-                }
 
                 launch(CommonPool) {
                     try {
@@ -63,17 +58,17 @@ fun main(args: Array<String>) {
                         while (true) {
                             val rc = System.`in`.read(buffer)
                             if (rc == -1) break
-                            session.appDataOutput.writeFully(buffer, 0, rc)
-                            session.appDataOutput.flush()
+                            output.writeFully(buffer, 0, rc)
+                            output.flush()
                         }
                     } finally {
-                        session.appDataOutput.close()
+                        output.close()
                     }
                 }
 
                 val bb = ByteBuffer.allocate(8192)
                 while (true) {
-                    val rc = session.appDataInput.readAvailable(bb)
+                    val rc = input.readAvailable(bb)
                     if (rc == -1) break
                     bb.flip()
                     System.out.write(bb.array(), bb.arrayOffset() + bb.position(), rc)
