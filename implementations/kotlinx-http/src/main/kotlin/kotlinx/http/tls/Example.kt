@@ -7,9 +7,16 @@ import kotlinx.sockets.selector.*
 import java.net.*
 
 fun main(args: Array<String>) {
-//    val remoteAddress = InetSocketAddress(InetAddress.getByName("ya.ru"), 443)
-    val remoteAddress = InetSocketAddress(InetAddress.getByName("localhost"), 44330)
-//    val remoteAddress = InetSocketAddress(InetAddress.getByName("localhost"), 9443)
+    val urlString = args.firstOrNull() ?: "https://kotlinlang.org"
+    val url = URL(urlString)
+
+    if (url.protocol != "https") throw IllegalArgumentException("Only https is supported")
+
+    val host = url.host
+    val port = url.port.takeIf { it > 0 }?.toInt() ?: 443
+    val pathAndQuery = url.path + (url.query?.let { "?" + it } ?: "").trim().let { if (it.startsWith("/")) it else "/$it" }
+
+    val remoteAddress = InetSocketAddress(host, port)
 
     runBlocking {
         ActorSelectorManager().use { selector ->
@@ -17,12 +24,12 @@ fun main(args: Array<String>) {
                 val input = socket.openReadChannel()
                 val output = socket.openWriteChannel()
 
-                val session = TLSClientSession(input, output)
+                val session = TLSClientSession(input, output, serverName = host)
                 launch(CommonPool) {
                     session.run()
                 }
 
-                session.appDataOutput.writeStringUtf8("GET / HTTP/1.1\r\nHost: localhost:44330\r\nConnection: keep-alive\r\n\r\n")
+                session.appDataOutput.writeStringUtf8("GET $pathAndQuery HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n")
                 session.appDataOutput.flush()
 
                 val bb = ByteBuffer.allocate(8192)
