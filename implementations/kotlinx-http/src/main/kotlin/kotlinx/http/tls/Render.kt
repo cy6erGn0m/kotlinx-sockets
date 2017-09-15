@@ -35,8 +35,22 @@ fun ByteWritePacket.writeTLSClientHello(hello: TLSHandshakeHeader) {
     writeByte(1)
     writeByte(0)
 
-    // extensions are always null
-    writeShort(0)
+    val extensions = buildExtensions()
+    writeShort(extensions.remaining.toShort())
+    writePacket(extensions)
+}
+
+private fun buildExtensions(): ByteReadPacket {
+    return buildPacket {
+        writeShort(0x000d) // signature_algorithms
+        val signaturesCount = 3
+        writeShort((2 + signaturesCount * 2).toShort()) // length in bytes
+        writeShort((signaturesCount * 2).toShort()) // length in bytes
+
+        writeShort(0x0601) // sha512+RSA
+        writeShort(0x0501) // sha384+RSA
+        writeShort(0x0401) // sha256+RSA
+    }
 }
 
 fun ByteWritePacket.writeEncryptedPreMasterSecret(preSecret: ByteArray, publicKey: PublicKey, random: SecureRandom) {
