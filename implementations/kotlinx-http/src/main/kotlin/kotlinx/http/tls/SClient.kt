@@ -5,11 +5,14 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
 import java.net.*
+import java.security.cert.*
+import javax.net.ssl.*
 import kotlin.system.*
 
 fun main(args: Array<String>) {
     var host = "localhost"
     var port = 443
+    var customManager: X509TrustManager? = null
 
     val it = args.iterator()
     while (it.hasNext()) {
@@ -18,6 +21,7 @@ fun main(args: Array<String>) {
         if (arg.startsWith("-")) {
             when (arg) {
                 "-h", "-?", "-help", "--help" -> printHelp()
+                "-k", "--insecure" -> customManager = TrustAllManager
                 else -> {
                     System.err.println("Invalid option $arg")
                     printHelp()
@@ -43,7 +47,7 @@ fun main(args: Array<String>) {
                 val input = socket.openReadChannel()
                 val output = socket.openWriteChannel()
 
-                val session = TLSClientSession(input, output)
+                val session = TLSClientSession(input, output, customManager)
                 launch(CommonPool) {
                     session.run()
                 }
@@ -76,5 +80,17 @@ fun main(args: Array<String>) {
 }
 
 private fun printHelp() {
-    println("java ... SClientKt [-h|-?|-help|--help] host[:port]")
+    println("java ... SClientKt [-h|-?|-help|--help] [-k|--insecure] host[:port]")
+}
+
+private object TrustAllManager : X509TrustManager {
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+    }
+
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+    }
+
+    override fun getAcceptedIssuers(): Array<X509Certificate>? {
+        return null
+    }
 }

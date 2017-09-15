@@ -5,10 +5,12 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.packet.*
 import kotlinx.sockets.*
 import java.security.*
+import java.security.cert.*
 import javax.crypto.*
 import javax.crypto.spec.*
+import javax.net.ssl.*
 
-class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel) {
+class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel, val trustManager: X509TrustManager? = null) {
     public val appDataInput: ByteReadChannel get() = _appDataInput
     public val appDataOutput: ByteWriteChannel get() = _appDataOutput
 
@@ -218,6 +220,14 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
             }
             TLSHandshakeType.Certificate -> {
                 val certs = packet.readTLSCertificate(handshakeHeader)
+                val x509s = certs.filterIsInstance<X509Certificate>()
+
+                val tm: X509TrustManager = trustManager ?: findTrustManager()
+
+                certs.forEach {
+                    tm.checkServerTrusted(x509s.toTypedArray(), "RSA")
+                }
+
                 serverKey = certs.firstOrNull()?.publicKey ?: throw TLSException("No server certificate/public key found")
             }
             TLSHandshakeType.ServerDone -> {
@@ -269,6 +279,15 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
             }
             else -> throw TLSException("Unsupported TLS handshake type ${handshakeHeader.type}")
         }
+    }
+
+    private fun findTrustManager(): X509TrustManager {
+        val tmf = TrustManagerFactory.getInstance(
+                TrustManagerFactory.getDefaultAlgorithm())
+        tmf.init(null as KeyStore?)
+        val tm = tmf.trustManagers
+
+        return tm.first { it is X509TrustManager } as X509TrustManager
     }
 
     private fun clientKeyExchange(random: SecureRandom, handshake: TLSHandshakeHeader, publicKey: PublicKey, preSecret: ByteArray): ByteReadPacket {
