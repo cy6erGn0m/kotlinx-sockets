@@ -10,7 +10,7 @@ import javax.crypto.*
 import javax.crypto.spec.*
 import javax.net.ssl.*
 
-class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel, val trustManager: X509TrustManager? = null) {
+class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel, val trustManager: X509TrustManager? = null, val serverName: String? = null) {
     public val appDataInput: ByteReadChannel get() = _appDataInput
     public val appDataOutput: ByteWriteChannel get() = _appDataOutput
 
@@ -312,6 +312,7 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel,
 //            handshake.suites[0] = 0x009d
         handshakeHeader.suites[0] = 0x009c
         handshakeHeader.random = clientRandom.copyOf()
+        handshakeHeader.serverName = serverName
 
         val helloBody = WritePacket()
         helloBody.writeTLSClientHello(handshakeHeader)

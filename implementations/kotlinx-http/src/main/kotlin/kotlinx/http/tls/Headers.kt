@@ -20,4 +20,6 @@ class TLSHandshakeHeader {
 
     var sessionIdLength = 0
     var sessionId = ByteArray(32)
+
+    var serverName: String? = null
 }

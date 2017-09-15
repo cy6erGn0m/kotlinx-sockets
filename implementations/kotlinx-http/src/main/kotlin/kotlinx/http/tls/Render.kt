@@ -35,12 +35,19 @@ fun ByteWritePacket.writeTLSClientHello(hello: TLSHandshakeHeader) {
     writeByte(1)
     writeByte(0)
 
-    val extensions = buildExtensions()
-    writeShort(extensions.remaining.toShort())
-    writePacket(extensions)
+    val extensions = ArrayList<ByteReadPacket>()
+    extensions += buildSignatureAlgorithmsExtension()
+    hello.serverName?.let { name ->
+        extensions += buildServerNameExtension(name)
+    }
+
+    writeShort(extensions.sumBy { it.remaining }.toShort())
+    for (e in extensions) {
+        writePacket(e)
+    }
 }
 
-private fun buildExtensions(): ByteReadPacket {
+private fun buildSignatureAlgorithmsExtension(): ByteReadPacket {
     return buildPacket {
         writeShort(0x000d) // signature_algorithms
         val signaturesCount = 3
@@ -50,6 +57,17 @@ private fun buildExtensions(): ByteReadPacket {
         writeShort(0x0601) // sha512+RSA
         writeShort(0x0501) // sha384+RSA
         writeShort(0x0401) // sha256+RSA
+    }
+}
+
+private fun buildServerNameExtension(name: String): ByteReadPacket {
+    return buildPacket {
+        writeShort(0) // server_name
+        writeShort((name.length + 2 + 1 + 2).toShort()) // lengthh
+        writeShort((name.length + 2 + 1).toShort()) // list length
+        writeByte(0) // type: host_name
+        writeShort(name.length.toShort()) // name length
+        writeStringUtf8(name)
     }
 }
 

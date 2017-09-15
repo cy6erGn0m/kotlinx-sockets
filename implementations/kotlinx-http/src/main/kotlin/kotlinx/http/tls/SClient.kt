@@ -13,15 +13,17 @@ fun main(args: Array<String>) {
     var host = "localhost"
     var port = 443
     var customManager: X509TrustManager? = null
+    var serverName: String? = null
 
     val it = args.iterator()
     while (it.hasNext()) {
         val arg = it.next()
 
         if (arg.startsWith("-")) {
-            when (arg) {
+            when (arg.substringBefore("=")) {
                 "-h", "-?", "-help", "--help" -> printHelp()
                 "-k", "--insecure" -> customManager = TrustAllManager
+                "-sname" -> serverName = arg.substringAfter("=", "")
                 else -> {
                     System.err.println("Invalid option $arg")
                     printHelp()
@@ -30,7 +32,7 @@ fun main(args: Array<String>) {
             }
         } else {
             host = arg.substringBefore(":")
-            port = arg.substringAfter(":").toInt()
+            port = arg.substringAfter(":", "").takeIf { it.isNotEmpty() }?.toInt() ?: 443
             if (it.hasNext()) {
                 System.err.println("Unexpected extra arguments: ${it.asSequence().joinToString(" ")}")
                 printHelp()
@@ -40,6 +42,9 @@ fun main(args: Array<String>) {
     }
 
     val remoteAddress = InetSocketAddress(host, port)
+    if (serverName != null && serverName.isEmpty()) {
+        serverName = host
+    }
 
     runBlocking {
         ActorSelectorManager().use { selector ->
@@ -47,7 +52,7 @@ fun main(args: Array<String>) {
                 val input = socket.openReadChannel()
                 val output = socket.openWriteChannel()
 
-                val session = TLSClientSession(input, output, customManager)
+                val session = TLSClientSession(input, output, customManager, serverName)
                 launch(CommonPool) {
                     session.run()
                 }
@@ -80,7 +85,7 @@ fun main(args: Array<String>) {
 }
 
 private fun printHelp() {
-    println("java ... SClientKt [-h|-?|-help|--help] [-k|--insecure] host[:port]")
+    println("java ... SClientKt [-h|-?|-help|--help] [-k|--insecure] [-sname|-sname=servername] host[:port]")
 }
 
 private object TrustAllManager : X509TrustManager {
