@@ -112,7 +112,9 @@ internal fun ByteReadPacket.encrypted(cipher: Cipher, recordIv: Long): ByteReadP
 
 internal fun ByteReadPacket.decrypted(cipher: Cipher): ByteReadPacket {
     val buffer = DefaultByteBufferPool.borrow()
-    val decrypted = DefaultByteBufferPool.borrow()
+    var decrypted = DefaultByteBufferPool.borrow()
+    var decryptedPool = DefaultByteBufferPool
+
     try {
         return buildPacket {
             buffer.clear()
@@ -123,6 +125,16 @@ internal fun ByteReadPacket.decrypted(cipher: Cipher): ByteReadPacket {
                 buffer.flip()
 
                 decrypted.clear()
+
+                if (cipher.getOutputSize(buffer.remaining()) > decrypted.remaining()) {
+                    if (buffer.capacity() < 65536) {
+                        decryptedPool.recycle(decrypted)
+                        decryptedPool = DefaultDatagramByteBufferPool
+                        decrypted = decryptedPool.borrow()
+                        decrypted.clear()
+                    }
+                }
+
                 cipher.update(buffer, decrypted)
                 decrypted.flip()
                 writeFully(decrypted)
@@ -133,6 +145,6 @@ internal fun ByteReadPacket.decrypted(cipher: Cipher): ByteReadPacket {
         }
     } finally {
         DefaultByteBufferPool.recycle(buffer)
-        DefaultByteBufferPool.recycle(decrypted)
+        decryptedPool.recycle(decrypted)
     }
 }
