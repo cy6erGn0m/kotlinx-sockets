@@ -1,6 +1,6 @@
 package kotlinx.http.tls
 
-enum class RecordType(val code: Int) {
+enum class TLSRecordType(val code: Int) {
     ChangeCipherSpec(0x14),
     Alert(0x15),
     Handshake(0x16),
@@ -9,7 +9,7 @@ enum class RecordType(val code: Int) {
     companion object {
         private val byCode = Array(256) { idx -> values().firstOrNull { it.code == idx } }
 
-        fun byCode(code: Int): RecordType = when (code) {
+        fun byCode(code: Int): TLSRecordType = when (code) {
             in 0..255 -> byCode[code]
             else -> null
         } ?: throw IllegalArgumentException("Invalid TLS record type code: $code")

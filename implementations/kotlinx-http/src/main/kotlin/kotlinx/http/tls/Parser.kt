@@ -7,30 +7,9 @@ import sun.security.x509.*
 import java.io.*
 import java.security.cert.*
 
-class TLSHeader {
-    var type: RecordType = RecordType.Handshake
-    var version: TLSVersion = TLSVersion.TLS12
-    var length: Int = 0
-}
-
-class TLSHandshakeHeader {
-    var type: TLSHandshakeType = TLSHandshakeType.HelloRequest
-    var length: Int = 0
-
-    var version: TLSVersion = TLSVersion.TLS12
-
-    var random = ByteArray(32)
-
-    var suitesCount = 0
-    var suites = ShortArray(255)
-
-    var sessionIdLength = 0
-    var sessionId = ByteArray(32)
-}
-
 suspend fun ByteReadChannel.readTLSHeader(header: TLSHeader): Boolean {
     val typeCode = try { readByte().toInt() and 0xff } catch (t: ClosedReceiveChannelException) { return false }
-    header.type = RecordType.byCode(typeCode)
+    header.type = TLSRecordType.byCode(typeCode)
     header.version = readTLSVersion()
     header.length = readShort().toInt() and 0xffff
 
@@ -39,7 +18,7 @@ suspend fun ByteReadChannel.readTLSHeader(header: TLSHeader): Boolean {
 }
 
 suspend fun ByteReadChannel.readTLSHandshake(header: TLSHeader, handshake: TLSHandshakeHeader) {
-    if (header.type !== RecordType.Handshake) throw TLSException("Expected TLS handshake but got ${header.type}")
+    if (header.type !== TLSRecordType.Handshake) throw TLSException("Expected TLS handshake but got ${header.type}")
 
     val v = readInt()
     handshake.type = TLSHandshakeType.byCode(v ushr 24)
