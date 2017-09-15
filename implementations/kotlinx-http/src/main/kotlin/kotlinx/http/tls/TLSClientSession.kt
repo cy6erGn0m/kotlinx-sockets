@@ -33,7 +33,18 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
     private val random = SecureRandom.getInstanceStrong()
 
     suspend fun run() {
-        tlsHandshakeAndNegotiation()
+        try {
+            tlsHandshakeAndNegotiation()
+        } catch (t: Throwable) {
+            _appDataOutput.close(t)
+            _appDataInput.close(t)
+            output.close(t)
+            throw t
+        } finally {
+            _appDataInput.close()
+            _appDataOutput.close()
+            output.close()
+        }
     }
 
     private suspend fun tlsHandshakeAndNegotiation() {
@@ -116,7 +127,9 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
                     if (fatal) {
                         _appDataInput.close(TLSException("Fatal: server alerted with description code $code"))
                     } else {
-                        println("Got TLS warning $code")
+                        if (code != 0.toByte()) {
+                            println("Got TLS warning $code")
+                        }
                         _appDataInput.close()
                     }
                     return
@@ -302,14 +315,7 @@ class TLSClientSession(val input: ByteReadChannel, val output: ByteWriteChannel)
     }
 
     private fun doHash(): ByteArray {
-        val (p, copy) = packetForHashing.build().duplicate()
-
-        val hs = TLSHandshakeHeader()
-        while (copy.remaining > 0) {
-            copy.readTLSHandshake(hs)
-            println("${hs.type} (${hs.length} bytes")
-            copy.skipExact(hs.length)
-        }
+        val p = packetForHashing.build()
 
         val digest = MessageDigest.getInstance(cipherSuite!!.hashName)!!
 
