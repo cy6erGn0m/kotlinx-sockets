@@ -138,6 +138,7 @@ suspend fun parseHttpBody(headers: HttpHeaders, input: ByteReadChannel, out: Byt
 
     if (headers["Connection"]?.equalsLowerCase(other = "close") == true) {
         input.copyTo(out)
+        return
     }
 
     out.close(IOException("Failed to parse request body: request body length should be specified, " +
