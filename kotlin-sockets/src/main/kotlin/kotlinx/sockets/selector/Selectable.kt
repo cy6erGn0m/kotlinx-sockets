@@ -35,32 +35,38 @@ interface Selectable : Closeable, DisposableHandle {
     fun interestOp(interest: SelectInterest, state: Boolean)
 }
 
-internal class SelectableBase(override val channel: SelectableChannel) : Selectable, SelectableNode() {
+internal open class SelectableBase(override val channel: SelectableChannel) : Selectable, SelectableNode() {
     override val selectable: Selectable get() = this
     override val node get() = this
 
-    private val interestedOpsAtomic = AtomicInteger(0)
-
     override val suspensions = InterestSuspensionsMap()
 
-    override val interestedOps: Int
-        get() = interestedOpsAtomic.get()
+    @Volatile
+    override var interestedOps: Int = 0
 
     override fun interestOp(interest: SelectInterest, state: Boolean) {
         val flag = interest.flag
 
         while (true) {
-            val before = interestedOpsAtomic.get()
+            val before = interestedOps
             val after = if (state) before or flag else before and flag.inv()
-            if (interestedOpsAtomic.compareAndSet(before, after)) break
+            if (InterestedOps.compareAndSet(this, before, after)) break
         }
     }
 
-    // TODO!!!
     override fun close() {
+        interestedOps = 0
+        suspensions.invokeForEachPresent {
+            resumeWithException(ClosedChannelException())
+        }
     }
 
     override fun dispose() {
+        close()
+    }
+
+    companion object {
+        val InterestedOps = AtomicIntegerFieldUpdater.newUpdater(SelectableBase::class.java, SelectableBase::interestedOps.name)!!
     }
 }
 

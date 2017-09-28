@@ -5,7 +5,7 @@ import kotlinx.sockets.selector.*
 import java.net.*
 import java.nio.channels.*
 
-internal class SocketImpl<out S : SocketChannel>(override val channel: S, selector: SelectorManager) : Selectable by SelectableBase(channel), NIOSocketImpl<S>(channel, selector, pool = null), Socket {
+internal class SocketImpl<out S : SocketChannel>(override val channel: S, selector: SelectorManager) : NIOSocketImpl<S>(channel, selector, pool = null), Socket {
     init {
         require(!channel.isBlocking) { "channel need to be configured as non-blocking" }
     }
@@ -32,14 +32,6 @@ internal class SocketImpl<out S : SocketChannel>(override val channel: S, select
         wantConnect(false)
 
         return this
-    }
-
-    override fun dispose() {
-        super<NIOSocketImpl>.dispose()
-    }
-
-    override fun close() {
-        super<NIOSocketImpl>.close()
     }
 
     private fun wantConnect(state: Boolean = true) {

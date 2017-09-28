@@ -8,7 +8,7 @@ import kotlinx.sockets.selector.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
 
-internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager, val pool: ObjectPool<ByteBuffer>?) : ReadWriteSocket, Selectable
+internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager, val pool: ObjectPool<ByteBuffer>?) : ReadWriteSocket, SelectableBase(channel)
         where S : java.nio.channels.ByteChannel, S : java.nio.channels.SelectableChannel {
 
     private val closeFlag = AtomicBoolean()
@@ -39,11 +39,16 @@ internal abstract class NIOSocketImpl<out S>(override val channel: S, val select
         }
     }
 
+    override fun dispose() {
+        close()
+    }
+
     override fun close() {
         if (closeFlag.compareAndSet(false, true)) {
             readerJob.get()?.channel?.close()
             writerJob.get()?.cancel()
             checkChannels()
+            super.close()
         }
     }
 

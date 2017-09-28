@@ -8,9 +8,7 @@ import java.net.*
 import java.nio.channels.*
 
 internal class DatagramSocketImpl(override val channel: DatagramChannel, selector: SelectorManager)
-    : BoundDatagramSocket, ConnectedDatagramSocket,
-        Selectable by SelectableBase(channel),
-        NIOSocketImpl<DatagramChannel>(channel, selector, DefaultDatagramByteBufferPool) {
+    : BoundDatagramSocket, ConnectedDatagramSocket, NIOSocketImpl<DatagramChannel>(channel, selector, DefaultDatagramByteBufferPool) {
 
     override val localAddress: SocketAddress
         get() = channel.localAddress ?: throw IllegalStateException("Channel is not yet bound")
@@ -22,12 +20,14 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, selecto
     }
 
     suspend override fun receive(): Datagram {
-        val buffer = ByteBuffer.allocateDirect(65536)
+        val buffer = DefaultDatagramByteBufferPool.borrow()
         val address = channel.receive(buffer) ?: return receiveSuspend(buffer)
 
         interestOp(SelectInterest.READ, false)
         buffer.flip()
-        return Datagram(buildPacket { writeFully(buffer) }, address)
+        val datagram = Datagram(buildPacket { writeFully(buffer) }, address)
+        DefaultDatagramByteBufferPool.recycle(buffer)
+        return datagram
     }
 
     private tailrec suspend fun receiveSuspend(buffer: ByteBuffer): Datagram {
@@ -38,12 +38,15 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, selecto
 
         interestOp(SelectInterest.READ, false)
         buffer.flip()
-        return Datagram(buildPacket { writeFully(buffer) }, address)
+        val datagram = Datagram(buildPacket { writeFully(buffer) }, address)
+        DefaultDatagramByteBufferPool.recycle(buffer)
+        return datagram
     }
 
     suspend override fun receive(dst: ByteBuffer): SocketAddress {
         val datagram = receive()
         datagram.packet.readAvailable(dst)
+        datagram.packet.release()
         return datagram.address
     }
 
@@ -70,13 +73,5 @@ internal class DatagramSocketImpl(override val channel: DatagramChannel, selecto
 
     suspend override fun write(src: ByteBuffer, target: SocketAddress) {
         send(Datagram(buildPacket { writeFully(src) }, target))
-    }
-
-    override fun close() {
-        super<NIOSocketImpl>.close()
-    }
-
-    override fun dispose() {
-        super<NIOSocketImpl>.dispose()
     }
 }
