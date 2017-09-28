@@ -36,3 +36,35 @@ internal fun attachForReadingImpl(channel: ByteChannel, nioChannel: ReadableByte
         }
     }
 }
+
+internal fun attachForReadingDirectImpl(channel: ByteChannel, nioChannel: ReadableByteChannel, selectable: Selectable, selector: SelectorManager): WriterJob {
+    return writer(ioCoroutineDispatcher, channel) {
+        try {
+            var rc: Int
+            val writeBlock = { buffer: ByteBuffer ->
+                rc = nioChannel.read(buffer) // we are writing from nio channel to CIO byte channel
+            }
+
+            while (true) {
+                rc = 0
+                channel.write(block = writeBlock)
+                if (rc == -1) {
+                    channel.close()
+                    break
+                } else if (rc == 0) {
+                    selectable.interestOp(SelectInterest.READ, true)
+                    selector.select(selectable, SelectInterest.READ)
+                } else {
+                    selectable.interestOp(SelectInterest.READ, false)
+                }
+            }
+        } finally {
+            if (nioChannel is SocketChannel) {
+                try {
+                    nioChannel.shutdownInput()
+                } catch (ignore: ClosedChannelException) {
+                }
+            }
+        }
+    }
+}

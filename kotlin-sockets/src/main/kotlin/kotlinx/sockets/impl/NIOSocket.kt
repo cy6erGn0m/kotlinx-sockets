@@ -5,11 +5,10 @@ import kotlinx.coroutines.experimental.io.*
 import kotlinx.coroutines.experimental.io.ByteChannel
 import kotlinx.sockets.*
 import kotlinx.sockets.selector.*
-import java.io.*
 import java.nio.channels.*
 import java.util.concurrent.atomic.*
 
-internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager, val pool: ObjectPool<ByteBuffer>) : ReadWriteSocket, Selectable
+internal abstract class NIOSocketImpl<out S>(override val channel: S, val selector: SelectorManager, val pool: ObjectPool<ByteBuffer>?) : ReadWriteSocket, Selectable
         where S : java.nio.channels.ByteChannel, S : java.nio.channels.SelectableChannel {
 
     private val closeFlag = AtomicBoolean()
@@ -18,15 +17,25 @@ internal abstract class NIOSocketImpl<out S>(override val channel: S, val select
 
     override val closed = CompletableDeferred<Unit>()
 
+    // NOTE: it is important here to use different versions of attachForReadingImpl
+    // because it is not always valid to use channel's internal buffer for NIO read/write:
+    //  at least UDP datagram reading MUST use bigger byte buffer otherwise datagram could be truncated
+    //  that will cause broken data
+    // however it is not the case for attachForWriting this is why we use direct writing in any case
+
     override final fun attachForReading(channel: ByteChannel): WriterJob {
         return attachFor("reading", channel, writerJob) {
-            attachForReadingImpl(channel, this.channel, this, selector, pool)
+            if (pool != null) {
+                attachForReadingImpl(channel, this.channel, this, selector, pool)
+            } else {
+                attachForReadingDirectImpl(channel, this.channel, this, selector)
+            }
         }
     }
 
     override final fun attachForWriting(channel: ByteChannel): ReaderJob {
         return attachFor("writing", channel, readerJob) {
-            attachForWritingImpl(channel, this.channel, this, selector, pool)
+            attachForWritingDirectImpl(channel, this.channel, this, selector)
         }
     }
 
