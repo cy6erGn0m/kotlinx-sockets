@@ -3,9 +3,7 @@ package kotlinx.sockets
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.io.*
-import kotlinx.coroutines.experimental.io.internal.*
-import kotlinx.sockets.impl.ObjectPool
-import kotlinx.sockets.impl.ObjectPoolImpl
+import kotlinx.sockets.impl.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.*
 import kotlin.coroutines.experimental.*
@@ -18,7 +16,7 @@ private val cpuCount = Runtime.getRuntime().availableProcessors()
 val ioCoroutineDispatcher: CoroutineDispatcher = IOCoroutineDispatcher(maxOf(2, (cpuCount * 2 / 3)))
 
 private val selectorsPool = ThreadPoolExecutor(
-        0, Int.MAX_VALUE,
+        1, Int.MAX_VALUE,
         10L, TimeUnit.SECONDS,
         ArrayBlockingQueue<Runnable>(100),
         GroupThreadFactory(selectorsGroup, true))
