@@ -1,7 +1,6 @@
 package kotlinx.sockets.examples.dns
 
 import kotlinx.coroutines.experimental.io.*
-import kotlinx.coroutines.experimental.io.packet.ByteReadPacketEmpty.skipExact
 import java.net.*
 import java.nio.charset.*
 
@@ -258,6 +257,10 @@ private suspend fun ByteReadChannel.getStringByRawLength(length: Int, decoder: C
     readFully(bb)
     bb.flip()
     return decoder.decode(bb).toString()
+}
+
+private suspend fun ByteReadChannel.skipExact(length: Int) {
+    readPacket(length).release()
 }
 
 private suspend fun ByteReadChannel.readUShort(): Int = readShort().toInt() and 0xffff
