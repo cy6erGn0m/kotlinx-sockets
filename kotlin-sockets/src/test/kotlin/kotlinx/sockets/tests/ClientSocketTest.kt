@@ -13,7 +13,7 @@ import kotlin.concurrent.*
 import kotlin.test.*
 
 class ClientSocketTest {
-    private val selector = ExplicitSelectorManager()
+    private val selector = ActorSelectorManager()
     private var server: Pair<ServerSocket, Thread>? = null
 
     @get:Rule

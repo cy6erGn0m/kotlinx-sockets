@@ -12,7 +12,7 @@ import java.util.concurrent.*
 import kotlin.test.*
 
 class SocketChannelTest {
-    private val selector = ExplicitSelectorManager()
+    private val selector = ActorSelectorManager()
 
     private lateinit var pool: Channel<ByteBuffer>
     private lateinit var serverSocket: ServerSocket
@@ -90,6 +90,29 @@ class SocketChannelTest {
             } finally {
                 server.joinOrFail()
             }
+        }
+    }
+
+    @Test
+    fun connectionMultiple() = runBlocking {
+        val server = launch(ioCoroutineDispatcher) {
+            serverAccept.consumeEach { c ->
+                delay(1)
+                c.close()
+            }
+        }
+
+        try {
+            for (i in 1..50) {
+                aSocket(selector).tcp().connect(serverSocket.localAddress).use { socket ->
+                    delay(1)
+                    socket.close()
+                }
+            }
+        } finally {
+            serverAccept.cancel()
+            server.joinOrFail()
+            serverSocket.close()
         }
     }
 

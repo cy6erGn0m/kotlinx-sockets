@@ -15,7 +15,7 @@ import kotlin.test.*
 
 class ServerSocketTest {
     private var tearDown = false
-    private val selector = ExplicitSelectorManager()
+    private val selector = ActorSelectorManager()
     private var client: Pair<java.net.Socket, Thread>? = null
     private var server by BlockingValue<ServerSocket>()
     private var failure: Throwable? = null
